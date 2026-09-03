@@ -1,6 +1,10 @@
-# PI2-Backend
+# pi2-backend — TaGravado
 
-API REST do Sistema De Replay.
+API REST do **TaGravado**, sistema de replay para quadras esportivas. Este repositório concentra o backend da aplicação; para o SPA, veja [pi2-frontend](https://github.com/PI2-2026-2-equipe-03/pi2-frontend). Para a visão geral do projeto (contexto, equipe, roadmap), veja [PI2-2026-2-equipe-03](https://github.com/PI2-2026-2-equipe-03/PI2-2026-2-equipe-03).
+
+## Objetivo
+
+Expor os recursos necessários para o fluxo de replay (geração, listagem e download de clipes) e, na Sprint 2, para a **reserva de horários** das quadras.
 
 ## Stack
 
@@ -21,7 +25,7 @@ git clone https://github.com/PI2-2026-2-equipe-03/pi2-backend
 cp .env.example .env
 npm install
 npm run db:migrate
-npm run db:seed      # opcional — admin, categorias e produtos de exemplo
+npm run db:seed      # opcional — dados de exemplo
 npm run dev          # http://localhost:3000
 ```
 
@@ -42,7 +46,8 @@ docker compose exec api npx prisma db seed
 
 ## Estrutura
 
-**sugestão:**
+Neste momento o repositório contém apenas o esqueleto (`src/`). A estrutura-alvo, a ser construída ao longo das Sprints 1 e 2:
+
 ```
 src/
 ├── env/              validação de variáveis de ambiente (Zod)
@@ -60,28 +65,23 @@ src/
 ```
 
 ## Domínios
-`categorias dos endpoints`
-- **Admin** - ...
-- **Video** - ...
+
+A ser detalhado após o levantamento de requisitos (Sprint 1). Escopo previsto:
+
+- **Auth** — autenticação de administradores da arena.
+- **Replay** — geração, listagem e download de clipes disparados pela botoeira.
+- **Reserva** — disponibilidade e reserva de horários das quadras (Sprint 2).
 
 ## API
 
-Swagger UI disponível em `http://localhost:3000/docs`. Health check em `http://localhost:3000/health`.
+Após implementada, a documentação interativa ficará em `http://localhost:3000/docs` (Swagger UI) e o health check em `http://localhost:3000/health`.
 
-| Grupo | Prefixo | Auth |
-|---|---|---|
-| Health | `/health` | — |
-| Auth | `/auth/*` | — |
-| Admin — Admins | `/admin/admins/*` | Bearer JWT |
-...
-
-## Scripts
+## Scripts (previstos)
 
 | Script | Descrição |
 |---|---|
 | `dev` | Servidor em watch mode via tsx |
 | `build` | Compila para `dist/` via tsup |
-| `build:vercel` | Gera client Prisma + compila (uso em deploy) |
 | `start` | Executa o build compilado |
 | `lint` / `lint:fix` | ESLint sobre `src/` |
 | `format` | Prettier sobre `src/` |
@@ -90,21 +90,18 @@ Swagger UI disponível em `http://localhost:3000/docs`. Health check em `http://
 | `test:coverage` | Cobertura v8 (≥ 90% em `use-cases/`) |
 | `db:migrate` | Cria e aplica migrations |
 | `db:generate` | Regenera o Prisma Client |
-| `db:seed` | Popula admin, categorias e produtos de exemplo |
-| `db:seed:pg` | Seed direto para PostgreSQL |
+| `db:seed` | Popula dados de exemplo |
 | `db:reset` | Reset e reaplicação das migrations |
 | `db:studio` | Abre o Prisma Studio |
 
 ## Banco de dados
 
-O provider é controlado por `DATABASE_PROVIDER` no `.env`:
+O provider será controlado por `DATABASE_PROVIDER` no `.env`:
 
 | Valor | Driver | Migrations |
 |---|---|---|
 | `sqlite` (padrão dev) | better-sqlite3 | `prisma/migrations/sqlite/` |
 | `postgres` (Docker / Supabase) | pg | `prisma/migrations/postgres/` |
-
-O script `scripts/prisma.mjs` sincroniza o `provider` do `schema.prisma` antes de cada comando Prisma, mantendo um schema único para ambos os bancos.
 
 Para **Supabase**, defina também `DIRECT_URL` (conexão direta, usada apenas por migrations — o runtime usa o pooler):
 
@@ -121,7 +118,7 @@ npm run test:watch
 npm run test:coverage
 ```
 
-Testes unitários usam repositórios in-memory. Testes e2e usam Supertest contra a instância `app` com banco de teste isolado. Cobertura mínima de 90% sobre `src/use-cases/**`.
+Testes unitários usarão repositórios in-memory. Testes e2e usarão Supertest contra a instância `app` com banco de teste isolado. Meta de cobertura: ≥ 90% sobre `src/use-cases/**`.
 
 ## Licença
 
