@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tagravado-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tagravado}
+      POSTGRES_USER: ${POSTGRES_USER:-tagravado}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tagravado}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - tagravado_db_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tagravado} -d ${POSTGRES_DB:-tagravado}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  tagravado_db_data:
