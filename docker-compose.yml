@@ -4,19 +4,41 @@ services:
     container_name: tagravado-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-tagravado}
-      POSTGRES_USER: ${POSTGRES_USER:-tagravado}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tagravado}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - tagravado_db_data:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tagravado} -d ${POSTGRES_DB:-tagravado}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
+  
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tagravado-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: ${API_PORT}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "${API_PORT}:3000"
+    volumes:
+      - ./src:/app/src
+      - ./package.json:/app/package.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - api_node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   tagravado_db_data:
+  api_node_modules:
