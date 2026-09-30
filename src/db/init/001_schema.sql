@@ -1,5 +1,4 @@
 -- TaGravado — DDL inicial
--- Baseado em /docs/modelo-entidade-relacionamento.md
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
