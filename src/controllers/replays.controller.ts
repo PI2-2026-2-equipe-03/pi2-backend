@@ -34,58 +34,98 @@ const replays: Replay[] = [
 export async function replaysController(app: FastifyInstance) {
   // Gerar um novo replay
   app.post('/replays', async (request, reply) => {
-    try {
-      const { arenaId, courtId } = request.body as {
-        arenaId?: number
-        courtId?: number
-      }
+  try {
+    const { courtId } = request.body as {
+      courtId?: string
+    }
 
-      if (!arenaId || !courtId) {
-        return reply.status(400).send({
-          error: {
-            message: 'arenaId e courtId são obrigatórios',
-          },
-        })
-      }
-
-      const replay: Replay = {
-        id: replays.length + 1,
-        arenaId,
-        courtId,
-        createdAt: new Date().toISOString(),
-        durationSeconds: 30,
-        fileName: `replay-${replays.length + 1}.mp4`,
-        downloadUrl: `/mock/replays/replay-${replays.length + 1}.mp4`,
-      }
-
-      replays.push(replay)
-
-      return reply.status(201).send({
-        data: replay,
-      })
-    } catch {
-      return reply.status(500).send({
+    if (!courtId) {
+      return reply.status(400).send({
         error: {
-          message: 'Erro interno do servidor',
+          message: 'courtId é obrigatório',
         },
       })
     }
-  })
+
+    const result = await app.pg.query(
+      `
+        INSERT INTO replay (
+          id_quadra,
+          data_geracao,
+          hora_geracao,
+          status
+        )
+        VALUES (
+          $1,
+          CURRENT_DATE,
+          CURRENT_TIME,
+          'pendente'
+        )
+        RETURNING
+          id_replay AS "id",
+          id_quadra AS "courtId",
+          arquivo_url AS "downloadUrl",
+          criado_em AS "createdAt",
+          status,
+          expira_em AS "expiresAt"
+      `,
+      [courtId],
+    )
+
+    return reply.status(201).send({
+      data: result.rows[0],
+    })
+  } catch (error) {
+    app.log.error(error)
+
+    return reply.status(500).send({
+      error: {
+        message: 'Erro interno do servidor',
+      },
+    })
+  }
+})
 
   // Listar replays
   app.get('/replays', async (_request, reply) => {
-    try {
-      return reply.status(200).send({
-        data: replays,
-      })
-    } catch {
-      return reply.status(500).send({
-        error: {
-          message: 'Erro interno do servidor',
-        },
-      })
-    }
-  })
+  try {
+    const result = await app.pg.query(`
+      SELECT
+        r.id_replay AS "id",
+        r.id_quadra AS "courtId",
+        r.arquivo_url AS "downloadUrl",
+        r.data_geracao AS "recordingDate",
+        r.hora_geracao AS "recordingTime",
+        r.status,
+        r.criado_em AS "createdAt",
+        r.expira_em AS "expiresAt",
+        q.nome AS "courtName",
+        a.nome AS "arenaName",
+        a.cidade AS "city"
+      FROM replay r
+      INNER JOIN quadra q
+        ON q.id_quadra = r.id_quadra
+      INNER JOIN arena a
+        ON a.id_arena = q.id_arena
+      WHERE r.status <> 'excluido'
+      ORDER BY
+        r.data_geracao DESC,
+        r.hora_geracao DESC
+    `)
+
+    return reply.status(200).send({
+      data: result.rows,
+    })
+  } catch (error) {
+    app.log.error(error)
+
+    return reply.status(500).send({
+      error: {
+        message: 'Erro interno do servidor',
+      },
+    })
+  }
+})
 
   // Obter link de download
   app.get('/replays/:id/download', async (request, reply) => {
