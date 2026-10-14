@@ -9,6 +9,7 @@ import betterAuthPlugin from "./plugins/better-auth.js";
 import { authController } from "./controllers/auth.controller.js";
 import { replaysController } from "./controllers/replays.controller.js";
 import { arenasController } from "./controllers/arenas.controller.js";
+import { quadrasController } from "./controllers/quadras.controller.js";
 
 export const app = Fastify({
   logger: true,
@@ -30,6 +31,7 @@ await app.register(betterAuthPlugin);
 
 app.register(replaysController);
 app.register(arenasController);
+app.register(quadrasController);
 
 app.get("/health", async () => {
   return { status: "ok" };
