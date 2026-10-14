@@ -8,12 +8,14 @@ import betterAuthPlugin from "./plugins/better-auth.js";
 
 import { authController } from "./controllers/auth.controller.js";
 import { replaysController } from "./controllers/replays.controller.js";
+import { arenasController } from "./controllers/arenas.controller.js";
 
 export const app = Fastify({
   logger: true,
 });
 
 await
+
 
 app.register(cors, {
   origin: "http://localhost:5173",
@@ -27,6 +29,7 @@ await app.register(betterAuthPlugin);
 // app.register(authController);
 
 app.register(replaysController);
+app.register(arenasController);
 
 app.get("/health", async () => {
   return { status: "ok" };
