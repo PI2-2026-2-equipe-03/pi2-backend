@@ -141,3 +141,25 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+backups/
+*.dump
+
+# Arquivos temporários
+*~
+*.swp
+*.swo
+
+# Credenciais e backups
+.env
+.env.*
+!.env.example
+backups/
+*.dump
+
+# Scripts experimentais de autenticação
+src/db/migrations/experimental/
+src/db/migrations/previews/
+
+# Backups temporários de editores
+*.save

@@ -4,7 +4,7 @@
   "description": "API REST do **TaGravado**, sistema de replay para quadras esportivas. Este repositório concentra o backend da aplicação; para o SPA, veja [pi2-frontend](https://github.com/PI2-2026-2-equipe-03/pi2-frontend). Para a visão geral do projeto (contexto, equipe, roadmap), veja [PI2-2026-2-equipe-03](https://github.com/PI2-2026-2-equipe-03/PI2-2026-2-equipe-03).",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "build": "tsc"
@@ -13,6 +13,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "better-auth": "^1.7.7",
     "fastify": "^5.12.5",
     "fastify-plugin": "^6.0.0",
     "fastify-type-provider-zod": "^7.0.0",
@@ -23,7 +25,8 @@
     "@types/node": "^26.6.2",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
   },
   "type": "module"
 }
