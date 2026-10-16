@@ -58,4 +58,8 @@ SELECT pg_temp.esperar_erro('CHECK: duração de patrocinador <= 0', '23514',
 $q$INSERT INTO patrocinador (id_gestor, nome, duracao, valor)
    VALUES ('10000000-0000-0000-0000-000000000001', 'Novo', 0, 100)$q$);
 
+SELECT pg_temp.esperar_erro('UNIQUE: e-mail duplicado com caixa diferente', '23505',
+$q$INSERT INTO usuario (nome, email, senha_hash)
+   VALUES ('Duplicado', 'Carlos.Mendes@example.com', 'hash')$q$);
+   
 ROLLBACK;
