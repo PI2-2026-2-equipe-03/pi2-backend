@@ -1,3 +1,5 @@
+DELETE FROM arena WHERE nome LIKE 'Massa Arena %';
+
 INSERT INTO arena (id_gestor, nome, cidade, endereco)
 SELECT '10000000-0000-0000-0000-000000000001', 'Massa Arena ' || g, 'Cidade ' || (g % 200), 'Rua ' || g
 FROM generate_series(1, 20000) g;
