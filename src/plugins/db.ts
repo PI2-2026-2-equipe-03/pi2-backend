@@ -16,8 +16,8 @@ export default fp(async (fastify: FastifyInstance) => {
   const pool = new Pool({
     connectionString,
     max: Number(process.env.DB_POOL_MAX ?? 10),
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS ?? 30000),
+    connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS ?? 5000),
   });
 
   pool.on("error", (err) => fastify.log.error(err, "Erro no pool do PostgresSQL"));
@@ -26,7 +26,6 @@ export default fp(async (fastify: FastifyInstance) => {
   fastify.log.info("PostgreSQL conectado");
 
   fastify.decorate("pg", pool);
-
   fastify.addHook("onClose", async (instance) => {
     await instance.pg.end();
   });
