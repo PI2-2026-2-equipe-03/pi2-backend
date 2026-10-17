@@ -31,18 +31,12 @@ npm run dev          # http://localhost:3000
 
 ### Docker (PostgreSQL)
 
-```bash
 cp .env.example .env   # ajuste JWT_SECRET
-docker compose up --build
-```
+`docker compose up --build`
 
-O compose sobe um Postgres 16 (`db`) e a aplicação (`api`). O entrypoint aplica as migrations antes de subir o servidor.
+O compose sobe um Postgres 16 (`db`) e a aplicação (`api`). Na primeira subida do banco, os scripts em `src/db/init/` (schema e seed) são executados automaticamente.
 
-Seed opcional após o compose estar rodando:
-
-```bash
-docker compose exec api npx prisma db seed
-```
+Se a porta 5432 já estiver ocupada na sua máquina, altere `POSTGRES_PORT` no `.env` para outra porta livre (ex.: `5433`). O container continua escutando em 5432 internamente; só muda a porta no host.
 
 ## Estrutura
 
