@@ -9,9 +9,10 @@ declare module "fastify" {
 }
 
 export default fp(async (fastify: FastifyInstance) => {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString =
+    process.env.REPLAY_DATABASE_URL ?? process.env.DATABASE_URL;
 
-  if(!connectionString) throw new Error("DATABASE_URL não definida");
+  if (!connectionString) throw new Error("DATABASE_URL não definida");
 
   const pool = new Pool({
     connectionString,
@@ -20,7 +21,9 @@ export default fp(async (fastify: FastifyInstance) => {
     connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS ?? 5000),
   });
 
-  pool.on("error", (err) => fastify.log.error(err, "Erro no pool do PostgresSQL"));
+  pool.on("error", (err) =>
+    fastify.log.error(err, "Erro no pool do PostgreSQL"),
+  );
 
   await pool.query("SELECT 1");
   fastify.log.info("PostgreSQL conectado");
