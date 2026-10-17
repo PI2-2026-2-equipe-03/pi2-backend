@@ -39,5 +39,18 @@ services:
       db:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: ../pi2-frontend
+    container_name: tagravado-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://${HOST_IP}:${API_PORT}
+      VITE_USE_MOCKS: "false"
+    ports:
+      - "${FRONTEND_PORT}:5173"
+    depends_on:
+      - api
+
 volumes:
   tagravado_db_data:
