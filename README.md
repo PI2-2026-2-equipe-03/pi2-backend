@@ -32,7 +32,7 @@ npm run dev          # http://localhost:3000
 ### Docker (PostgreSQL)
 
 ```bash
-cp .env.example .env   #R ajuste JWT_SECET
+cp .env.example .env   # ajuste JWT_SECET
 docker compose up --build
 ```
 

@@ -18,7 +18,7 @@ INSERT INTO usuario (
     telefone
 )
 VALUES
-    ('10000000-0000-0000-0000-000000000001', 'Carlos Mendes', 'arlos.mendes@example.com', '$2b$12$seed_hash_001', '91999990001'),
+    ('10000000-0000-0000-0000-000000000001', 'Carlos Mendes', 'carlos.mendes@example.com', '$2b$12$seed_hash_001', '91999990001'),
     ('10000000-0000-0000-0000-000000000002', 'Mariana Costa', 'mariana.costa@example.com', '$2b$12$seed_hash_002', '91999990002'),
     ('10000000-0000-0000-0000-000000000003', 'Rafael Oliveira', 'rafael.oliveira@example.com', '$2b$12$seed_hash_003', '91999990003'),
     ('10000000-0000-0000-0000-000000000004', 'Fernanda Souza', 'fernanda.souza@example.com', '$2b$12$seed_hash_004', '91999990004'),
