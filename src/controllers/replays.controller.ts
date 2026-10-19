@@ -1,6 +1,10 @@
 import type { FastifyInstance } from 'fastify'
 import { requireAuth } from '../middlewares/require-auth.js'
 import {podeGerenciarQuadra, podeBaixarReplay,} from '../services/replay-authorization.js'
+import { excluirReplay } from '../services/replay-deletion.js'
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function replaysController(app: FastifyInstance) {
   // Gerar um novo replay
@@ -212,4 +216,64 @@ app.get(
     }
   }
 )
+  // Excluir replay manualmente (RN-04)
+  app.delete(
+    '/replays/:id',
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      try {
+        const { id } = request.params as { id: string }
+        const authUserId = request.authUser?.id
+
+        if (!authUserId) {
+          return reply.code(401).send({ message: 'Usuário não autenticado' })
+        }
+
+        if (!UUID_REGEX.test(id)) {
+          return reply.code(400).send({ message: 'ID do replay inválido' })
+        }
+
+        const body = request.body as { motivo?: unknown } | undefined
+        let motivo = 'Exclusão manual (sem motivo informado)'
+
+        if (body?.motivo !== undefined) {
+          if (typeof body.motivo !== 'string') {
+            return reply.code(400).send({ message: 'O motivo deve ser um texto' })
+          }
+
+          const texto = body.motivo.trim()
+
+          if (texto.length > 255) {
+            return reply.code(422).send({
+              message: 'O motivo deve ter no máximo 255 caracteres',
+            })
+          }
+
+          if (texto.length > 0) motivo = texto
+        }
+
+        const resultado = await excluirReplay(authUserId, id, motivo)
+
+        if (!resultado.ok) {
+          if (resultado.erro === 'nao_encontrado') {
+            return reply.code(404).send({ message: 'Replay não encontrado' })
+          }
+
+          if (resultado.erro === 'sem_permissao') {
+            return reply.code(403).send({
+              message: 'Você não tem permissão para excluir este replay',
+            })
+          }
+
+          return reply.code(409).send({ message: 'Este replay já foi excluído' })
+        }
+
+        return reply.code(200).send({ message: 'Replay excluído com sucesso' })
+      } catch (error) {
+        app.log.error(error)
+
+        return reply.code(500).send({ message: 'Erro interno do servidor' })
+      }
+    },
+  )
   }
