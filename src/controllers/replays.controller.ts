@@ -1,97 +1,63 @@
 import type { FastifyInstance } from 'fastify'
 import { requireAuth } from '../middlewares/require-auth.js'
-import {podeGerenciarQuadra, podeBaixarReplay,} from '../services/replay-authorization.js'
+import { podeBaixarReplay } from '../services/replay-authorization.js'
+import { criarReplay } from '../services/replay-creation.js'
 import { excluirReplay } from '../services/replay-deletion.js'
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function replaysController(app: FastifyInstance) {
-  // Gerar um novo replay
+    // Gerar um novo replay (RN-02 e RN-08)
   app.post(
-  '/replays',
-  { preHandler: requireAuth },
-  async (request, reply) => {
-  try {
-    const { courtId } = request.body as {
-      courtId?: string
-    }
+    '/replays',
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      try {
+        const authUserId = request.authUser?.id
 
-    if (!courtId) {
-      return reply.status(400).send({
-        error: {
-          message: 'courtId é obrigatório',
-        },
-      })
-    }
+        if (!authUserId) {
+          return reply.code(401).send({ message: 'Usuário não autenticado' })
+        }
 
-	const authUserId = request.authUser?.id
+        const body = request.body as { courtId?: unknown } | undefined
+        const courtId = body?.courtId
 
-if (!authUserId) {
-  return reply.status(401).send({
-    message: 'Usuário não autenticado',
-  })
-}
+        if (courtId === undefined || courtId === null || courtId === '') {
+          return reply.code(400).send({ message: 'courtId é obrigatório' })
+        }
 
-const uuidValido =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        if (typeof courtId !== 'string' || !UUID_REGEX.test(courtId)) {
+          return reply.code(400).send({ message: 'ID da quadra inválido' })
+        }
 
-if (!uuidValido.test(courtId)) {
-  return reply.status(400).send({
-    message: 'ID da quadra inválido',
-  })
-}
+        const resultado = await criarReplay(authUserId, courtId)
 
-const autorizado = await podeGerenciarQuadra(
-  authUserId,
-  courtId
-)
+        if (!resultado.ok) {
+          if (resultado.erro === 'quadra_nao_encontrada') {
+            return reply.code(404).send({ message: 'Quadra não encontrada' })
+          }
 
-if (!autorizado) {
-  return reply.status(403).send({
-    message: 'Você não tem permissão para gerenciar esta quadra',
-  })
-}
+          if (resultado.erro === 'sem_permissao') {
+            return reply.code(403).send({
+              message: 'Você não tem permissão para gerenciar esta quadra',
+            })
+          }
 
-    const result = await app.pg.query(
-      `
-        INSERT INTO replay (
-          id_quadra,
-          data_geracao,
-          hora_geracao,
-          status
-        )
-        VALUES (
-          $1,
-          CURRENT_DATE,
-          CURRENT_TIME,
-          'pendente'
-        )
-        RETURNING
-          id_replay AS "id",
-          id_quadra AS "courtId",
-          arquivo_url AS "downloadUrl",
-          criado_em AS "createdAt",
-          status,
-          expira_em AS "expiresAt"
-      `,
-      [courtId],
-    )
+          return reply.code(409).send({
+            message: `Já existe um replay desta quadra nos últimos 30 segundos. Tente novamente em ${resultado.segundosRestantes} s.`,
+            retryAfter: resultado.segundosRestantes,
+          })
+        }
 
-    return reply.status(201).send({
-      data: result.rows[0],
-    })
-  } catch (error) {
-    app.log.error(error)
+        return reply.code(201).send({ data: resultado.replay })
+      } catch (error) {
+        app.log.error(error)
 
-    return reply.status(500).send({
-      error: {
-        message: 'Erro interno do servidor',
-      },
-    })
-  }
-})
-
+        return reply.code(500).send({ message: 'Erro interno do servidor' })
+      }
+    },
+  )
   // Listar replays
 app.get(
   '/replays',
