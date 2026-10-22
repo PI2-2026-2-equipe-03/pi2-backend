@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { parse } from '../http/errors.js';
 
 import type { FastifyInstance } from "fastify";
 
@@ -19,7 +21,7 @@ export async function arenasController(app: FastifyInstance) {
   app.get<{ Querystring: ArenasQuery }>(
     "/arenas",
     async (request, reply) => {
-      const { cidade, q } = request.query;
+      const { cidade, q } = parse(z.object({ cidade: z.string().trim().max(100).optional(), q: z.string().trim().max(150).optional() }).strict(), request.query);
 
       const cidadeFiltro = cidade?.trim() || null;
       const nomeFiltro = q?.trim() || null;

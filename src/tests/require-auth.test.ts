@@ -54,6 +54,7 @@ describe('Middleware requireAuth', () => {
 
   it('retorna 403 quando o usuário não possui vínculo', async () => {
     sessionMock.mockResolvedValueOnce({
+      session: { updatedAt: new Date(), token: 'session-token' },
       user: {
         id: 'auth-123',
         name: 'Usuario Teste',
@@ -77,6 +78,7 @@ describe('Middleware requireAuth', () => {
 
   it('permite usuário autenticado com vínculo', async () => {
     sessionMock.mockResolvedValueOnce({
+      session: { updatedAt: new Date(), token: 'session-token' },
       user: {
         id: 'auth-123',
         name: 'Usuario Teste',
@@ -89,6 +91,7 @@ describe('Middleware requireAuth', () => {
       rowCount: 1,
     } as never)
 
+    sessionMock.mockResolvedValueOnce({ response: { user: { id: 'auth-123' } }, headers: new Headers() } as never)
     const request = { headers: {} } as FastifyRequest
     const reply = criarReply()
 

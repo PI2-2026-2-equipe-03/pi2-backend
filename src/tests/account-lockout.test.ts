@@ -51,7 +51,7 @@ describe('RNF-04 — Bloqueio de contas', () => {
     await limparTentativas('teste@example.com')
 
     expect(queryMock).toHaveBeenCalledOnce()
-    expect(queryMock.mock.calls[0][0]).toContain('UPDATE "user"')
+    expect(queryMock.mock.calls[0][0]).toContain('DELETE FROM auth_login_attempt')
   })
 
   it('utiliza o banco para controlar o bloqueio', async () => {
@@ -61,7 +61,7 @@ describe('RNF-04 — Bloqueio de contas', () => {
 
     await registrarFalha('teste@example.com')
 
-    expect(queryMock.mock.calls[0][0]).toContain('FOR UPDATE')
+    expect(queryMock.mock.calls[0][0]).toContain('ON CONFLICT(email,ip) DO UPDATE')
   })
 })
 
