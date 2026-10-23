@@ -2,6 +2,10 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { requireAuth } from '../middlewares/require-auth.js'
 import { HttpError, parse, uuid } from '../http/errors.js'
+import { docOnly } from '../schemas/doc-only.js'
+import { errorSchema, sponsorBodySchema, sponsorResponseSchema, adminMetricsSchema, managerMetricsSchema } from '../schemas/api.js'
+
+const security = [{ cookieAuth: [] }]
 
 const sponsorSchema = z.object({
   name: z.string().trim().min(2, 'Informe o nome do patrocinador').max(150),
@@ -12,7 +16,14 @@ const sponsorSchema = z.object({
 }).strict()
 
 export async function managementController(app: FastifyInstance) {
-  app.post('/sponsors', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/sponsors', {
+  ...docOnly, preHandler: requireAuth,
+  schema: {
+    tags: ['sponsors'], summary: 'Cadastrar patrocinador', security,
+    body: sponsorBodySchema,
+    response: { 201: sponsorResponseSchema, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+  },
+}, async (request, reply) => {
     const data = parse(sponsorSchema, request.body)
     const client = await app.pg.connect()
     try {
@@ -34,7 +45,13 @@ export async function managementController(app: FastifyInstance) {
     finally { client.release() }
   })
 
-  app.get('/admin/metrics', { preHandler: requireAuth }, async request => {
+  app.get('/admin/metrics', {
+  ...docOnly, preHandler: requireAuth,
+  schema: {
+    tags: ['metrics'], summary: 'Métricas do administrador', security,
+    response: { 200: adminMetricsSchema, 401: errorSchema, 403: errorSchema },
+  },
+}, async request => {
     const admin = await app.pg.query(`SELECT 1 FROM administrador ad JOIN usuario_auth ua ON ua.id_usuario=ad.id_usuario WHERE ua.id_auth=$1`, [request.authUser!.id])
     if (!admin.rowCount) throw new HttpError(403, 'Apenas administradores podem consultar estas métricas')
     const counts = await app.pg.query(`SELECT
@@ -47,7 +64,13 @@ export async function managementController(app: FastifyInstance) {
     return { ...counts.rows[0], mostAccessedCourts: accessed.rows }
   })
 
-  app.get('/manager/metrics', { preHandler: requireAuth }, async request => {
+  app.get('/manager/metrics', {
+  ...docOnly, preHandler: requireAuth,
+  schema: {
+    tags: ['metrics'], summary: 'Métricas do gestor', security,
+    response: { 200: managerMetricsSchema, 401: errorSchema, 403: errorSchema },
+  },
+}, async request => {
     const manager = await app.pg.query(`SELECT ga.id_usuario FROM gestor_arena ga JOIN usuario_auth ua ON ua.id_usuario=ga.id_usuario WHERE ua.id_auth=$1`, [request.authUser!.id])
     if (!manager.rowCount) throw new HttpError(403, 'Apenas gestores podem consultar estas métricas')
     const managerId = manager.rows[0].id_usuario

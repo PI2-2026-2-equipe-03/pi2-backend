@@ -95,3 +95,37 @@ export const loginResponseSchema = z.object({
   expiresIn: z.number(),
   user: sessionUserSchema,
 })
+
+export const sponsorBodySchema = z.object({
+  name: z.string().min(2).max(150),
+  imageUrl: z.string().max(500),
+  duration: z.number().int().positive().max(30),
+  value: z.number().nonnegative(),
+  courtIds: z.array(id).min(1).max(100),
+})
+export const sponsorResponseSchema = z.object({
+  id,
+  name: z.string(),
+  imageUrl: z.string().nullable(),
+  duration: z.number(),
+  value: z.number(),
+  courtIds: z.array(id),
+})
+export const adminMetricsSchema = z.object({
+  activeUsers: z.number(),
+  totalCourts: z.number(),
+  totalReplays: z.number(),
+  mostAccessedCourts: z.array(z.object({ courtId: id, name: z.string(), accesses: z.number() })),
+})
+export const managerMetricsSchema = z.object({
+  totalReplays: z.number(),
+  totalSponsors: z.number(),
+  peakHours: z.array(z.object({ hour: z.string(), accesses: z.number() })),
+  courts: z.array(z.object({ id, name: z.string(), replays: z.number() })),
+})
+export const forgotPasswordBodySchema = z.object({ email: z.email() })
+export const resetPasswordBodySchema = z.object({
+  token: z.string(),
+  password: z.string(),
+  passwordConfirmation: z.string(),
+})

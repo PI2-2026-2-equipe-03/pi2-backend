@@ -13,6 +13,8 @@ export default fp(async (app) => {
         { name: 'replays', description: 'Replays das quadras' },
         { name: 'arenas', description: 'Arenas' },
         { name: 'quadras', description: 'Quadras' },
+        { name: 'sponsors', description: 'Patrocinadores' },
+        { name: 'metrics', description: 'Métricas de administrador e gestor' },
       ],
       components: {
         securitySchemes: {

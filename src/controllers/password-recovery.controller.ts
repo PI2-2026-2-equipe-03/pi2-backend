@@ -4,6 +4,9 @@ import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto'
 import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { authPool } from '../lib/auth.js'
 import { HttpError, parse, strongPassword } from '../http/errors.js'
+import { docOnly } from '../schemas/doc-only.js'
+import { errorSchema, messageSchema, forgotPasswordBodySchema, resetPasswordBodySchema } from '../schemas/api.js'
+
 
 const emailSchema = z.object({ email: z.string().trim().toLowerCase().pipe(z.email({ error: 'Informe um e-mail válido' })) }).strict()
 const resetSchema = z.object({ token: z.string().regex(/^[0-9a-f-]{36}\.\d{6}$/i, 'Informe o token recebido por e-mail'), password: z.string(), passwordConfirmation: z.string() }).strict()
@@ -19,7 +22,14 @@ function deliveryUrl() {
 }
 
 export async function passwordRecoveryController(app: FastifyInstance) {
-  app.post('/auth/forgot-password', async (request, reply) => {
+  app.post('/auth/forgot-password', {
+  ...docOnly,
+  schema: {
+    tags: ['auth'], summary: 'Solicitar recuperação de senha',
+    body: forgotPasswordBodySchema,
+    response: { 200: messageSchema, 400: errorSchema, 429: errorSchema, 503: errorSchema },
+  },
+}, async (request, reply) => {
     const { email } = parse(emailSchema, request.body)
     const url = deliveryUrl()
     if (!process.env.BETTER_AUTH_SECRET) throw new HttpError(503, 'Configuração de autenticação incompleta')
@@ -56,7 +66,14 @@ export async function passwordRecoveryController(app: FastifyInstance) {
     finally { client.release() }
   })
 
-  app.post('/auth/reset-password', async (request, reply) => {
+  app.post('/auth/reset-password', {
+  ...docOnly,
+  schema: {
+    tags: ['auth'], summary: 'Redefinir senha',
+    body: resetPasswordBodySchema,
+    response: { 200: messageSchema, 400: errorSchema, 401: errorSchema, 422: errorSchema, 429: errorSchema },
+  },
+}, async (request, reply) => {
     const { token,password,passwordConfirmation } = parse(resetSchema, request.body)
     parse(strongPassword, password, 422)
     if (password !== passwordConfirmation) throw new HttpError(422, 'As senhas não coincidem')

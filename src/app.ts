@@ -24,20 +24,19 @@ app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)
 
 registerErrorHandler(app);
-app.register(managementController);
-app.register(passwordRecoveryController);
 
 await app.register(cors, { origin: "http://localhost:5173", credentials: true, });
 await app.register(dbPlugin);
 await app.register(openapiPlugin)
 await app.register(replayRetentionPlugin);
 await app.register(betterAuthPlugin);
-await app.register(betterAuthPlugin);
 
 await app.register(authController);
-await app.register(replaysController, { prefix: '/api' });
-await app.register(arenasController, { prefix: '/api' });
-await app.register(quadrasController, { prefix: '/api' });
+await app.register(replaysController);
+await app.register(arenasController);
+await app.register(quadrasController);
+await app.register(managementController);
+await app.register(passwordRecoveryController);
 
 app.get("/health", { schema: { hide: true } }, async () => {
   return { status: "ok" };
