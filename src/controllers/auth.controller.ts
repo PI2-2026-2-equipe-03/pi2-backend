@@ -4,13 +4,20 @@ import { z } from 'zod'
 import { auth, authPool, authLockPool } from '../lib/auth.js'
 import { HttpError, parse, phone, strongPassword } from '../http/errors.js'
 import { registrarFalha, limparTentativas } from '../services/account-lockout.js'
+import type { ZodTypeProvider } from 'fastify-type-provider-zod'
+import {
+  errorSchema, authUserSchema, registerBodySchema, loginBodySchema,
+  sessionUserSchema, loginResponseSchema,
+} from '../schemas/api.js'
 
-const signup = z.object({ name: z.string().trim().min(2, 'Informe o nome completo').max(150),
+const signup = z.object({
+  name: z.string().trim().min(2, 'Informe o nome completo').max(150),
   email: z.string().trim().toLowerCase().pipe(z.email({ error: 'Informe um e-mail válido' })), phone,
   password: z.string().min(1), confirmPassword: z.string().optional(), image: z.url().optional(),
   callbackURL: z.string().optional(), rememberMe: z.boolean().optional(),
 }).strict()
-const login = z.object({ email: z.string().trim().toLowerCase().pipe(z.email({ error: 'Informe um e-mail válido' })),
+const login = z.object({
+  email: z.string().trim().toLowerCase().pipe(z.email({ error: 'Informe um e-mail válido' })),
   password: z.string().min(1).max(128), rememberMe: z.boolean().optional(), callbackURL: z.string().optional(),
 }).strict()
 
@@ -105,7 +112,41 @@ export async function handleAuth(request: FastifyRequest, reply: FastifyReply, p
   finally { client.release() }
 }
 
+const docOnly = {
+  validatorCompiler: (() => (data: unknown) => ({ value: data })) as never,
+  serializerCompiler: (() => (data: unknown) => JSON.stringify(data)) as never,
+}
+
 export async function authController(app: FastifyInstance) {
-  app.post('/auth/register', (request, reply) => handleAuth(request, reply, '/api/auth/sign-up/email'))
-  app.post('/auth/login', (request, reply) => handleAuth(request, reply, '/api/auth/sign-in/email'))
+  const r = app.withTypeProvider<ZodTypeProvider>()
+  const cookie = [{ cookieAuth: [] }]
+
+  r.post('/auth/register', {
+    ...docOnly,
+    schema: {
+      tags: ['auth'], summary: 'Cadastrar usuário', body: registerBodySchema,
+      response: { 201: sessionUserSchema, 400: errorSchema, 409: errorSchema, 422: errorSchema },
+    },
+  }, (request, reply) => handleAuth(request, reply, '/api/auth/sign-up/email'))
+
+  r.post('/auth/login', {
+    ...docOnly,
+    schema: {
+      tags: ['auth'], summary: 'Login', body: loginBodySchema,
+      response: { 200: loginResponseSchema, 400: errorSchema, 401: errorSchema, 429: errorSchema },
+    },
+  }, (request, reply) => handleAuth(request, reply, '/api/auth/sign-in/email'))
+
+  r.post('/api/auth/sign-out', {
+    ...docOnly,
+    schema: { tags: ['auth'], summary: 'Logout', security: cookie, response: { 200: z.object({ success: z.boolean() }) } },
+  }, (request, reply) => handleAuth(request, reply))
+
+  r.get('/api/auth/get-session', {
+    ...docOnly,
+    schema: {
+      tags: ['auth'], summary: 'Sessão atual', security: cookie,
+      response: { 200: z.object({ session: z.object({ id: z.string(), userId: z.string(), token: z.string(), expiresAt: z.string() }), user: authUserSchema }).nullable() },
+    },
+  }, (request, reply) => handleAuth(request, reply))
 }

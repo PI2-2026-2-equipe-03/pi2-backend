@@ -1,11 +1,15 @@
 
 import { describe, it, expect, vi } from "vitest";
 import Fastify from "fastify";
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
 import { arenasController } from "../controllers/arenas.controller.js";
 
 describe("GET /arenas", () => {
   async function criarApp() {
     const app = Fastify();
+
+    app.setValidatorCompiler(validatorCompiler);
+app.setSerializerCompiler(serializerCompiler);
 
     const query = vi.fn().mockResolvedValue({
       rows: [{

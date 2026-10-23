@@ -2,10 +2,14 @@
 import { describe, it, expect, vi } from "vitest";
 import Fastify from "fastify";
 import { quadrasController } from "../controllers/quadras.controller.js";
+import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 
 describe("GET /quadras", () => {
   async function criarApp() {
     const app = Fastify();
+
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
 
     const query = vi.fn().mockResolvedValue({
       rows: [

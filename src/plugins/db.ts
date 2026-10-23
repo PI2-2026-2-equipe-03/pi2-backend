@@ -1,5 +1,5 @@
 import fp from "fastify-plugin";
-import { Pool } from "pg";
+import pg, { Pool } from "pg";
 import type { FastifyInstance } from "fastify";
 
 declare module "fastify" {

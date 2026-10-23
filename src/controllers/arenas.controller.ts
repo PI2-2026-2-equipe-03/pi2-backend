@@ -1,33 +1,40 @@
-import { z } from 'zod';
-import { parse } from '../http/errors.js';
-
 import type { FastifyInstance } from "fastify";
-
-interface ArenasQuery {
-  cidade?: string;
-  q?: string;
-}
-
-interface ArenaDto {
-  id: string;
-  clienteId: string;
-  nome: string;
-  cidade: string;
-  endereco: string;
-  fotoUrl: string | null;
-}
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
+import { z } from "zod";
+import { parse } from "../http/errors.js";
+import { docOnly } from "../schemas/doc-only.js";
+import { arenaSchema, arenasQuerySchema, data, errorSchema } from "../schemas/api.js";
 
 export async function arenasController(app: FastifyInstance) {
-  app.get<{ Querystring: ArenasQuery }>(
+  app.withTypeProvider<ZodTypeProvider>().get(
     "/arenas",
+    {
+      ...docOnly,
+      schema: {
+        tags: ["arenas"],
+        summary: "Listar arenas",
+        querystring: arenasQuerySchema,
+        response: {
+          200: data(z.array(arenaSchema)),
+          400: errorSchema,
+          500: errorSchema,
+        },
+      },
+    },
     async (request, reply) => {
-      const { cidade, q } = parse(z.object({ cidade: z.string().trim().max(100).optional(), q: z.string().trim().max(150).optional() }).strict(), request.query);
+      const { cidade, q } = parse(
+        z.object({
+          cidade: z.string().trim().max(100).optional(),
+          q: z.string().trim().max(150).optional(),
+        }).strict(),
+        request.query
+      );
 
       const cidadeFiltro = cidade?.trim() || null;
       const nomeFiltro = q?.trim() || null;
 
       try {
-        const result = await app.pg.query<ArenaDto>(
+        const result = await app.pg.query(
           `
           SELECT
             id_arena AS id,
@@ -46,14 +53,11 @@ export async function arenasController(app: FastifyInstance) {
           [cidadeFiltro, nomeFiltro]
         );
 
-        return reply.code(200).send({
-          data: result.rows,
-        });
+        return reply.code(200).send({ data: result.rows });
       } catch (error) {
         request.log.error(error, "Erro ao listar arenas");
-
         return reply.code(500).send({
-          message: "Erro interno ao consultar arenas",
+          error: { message: "Erro interno ao consultar arenas" },
         });
       }
     }

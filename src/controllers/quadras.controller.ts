@@ -1,34 +1,38 @@
-import { z } from 'zod';
-import { parse, uuid } from '../http/errors.js';
-
 import type { FastifyInstance } from "fastify";
-
-interface QuadrasQuery {
-  arenaId?: string;
-  disponivel?: string;
-}
-
-interface QuadraDto {
-  id: string;
-  arenaId: string;
-  nome: string;
-  disponivel: boolean;
-}
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
+import { z } from "zod";
+import { parse, uuid } from "../http/errors.js";
+import { docOnly } from "../schemas/doc-only.js";
+import { data, errorSchema, quadraSchema, quadrasQuerySchema } from "../schemas/api.js";
 
 export async function quadrasController(app: FastifyInstance) {
-  app.get<{ Querystring: QuadrasQuery }>(
+  app.withTypeProvider<ZodTypeProvider>().get(
     "/quadras",
+    {
+      ...docOnly,
+      schema: {
+        tags: ["quadras"],
+        summary: "Listar quadras",
+        querystring: quadrasQuerySchema,
+        response: {
+          200: data(z.array(quadraSchema)),
+          400: errorSchema,
+          500: errorSchema,
+        },
+      },
+    },
     async (request, reply) => {
-      const { arenaId, disponivel } = parse(z.object({ arenaId: uuid.optional(), disponivel: z.enum(['true', 'false']).optional() }).strict(), request.query);
+      const { arenaId, disponivel } = parse(
+        z.object({ arenaId: uuid.optional(), disponivel: z.enum(["true", "false"]).optional() }).strict(),
+        request.query
+      );
 
       const filtroArena = arenaId ?? null;
       const filtroDisponivel =
-        disponivel === undefined
-          ? null
-          : disponivel === "true";
+        disponivel === undefined ? null : disponivel === "true";
 
       try {
-        const result = await app.pg.query<QuadraDto>(
+        const result = await app.pg.query(
           `
           SELECT
             id_quadra AS id,
@@ -45,14 +49,11 @@ export async function quadrasController(app: FastifyInstance) {
           [filtroArena, filtroDisponivel]
         );
 
-        return reply.code(200).send({
-          data: result.rows,
-        });
+        return reply.code(200).send({ data: result.rows });
       } catch (error) {
         request.log.error(error, "Erro ao listar quadras");
-
         return reply.code(500).send({
-          message: "Erro interno ao consultar quadras",
+          error: { message: "Erro interno ao consultar quadras" },
         });
       }
     }

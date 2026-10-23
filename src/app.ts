@@ -15,36 +15,37 @@ import { replaysController } from "./controllers/replays.controller.js";
 import { arenasController } from "./controllers/arenas.controller.js";
 import { quadrasController } from "./controllers/quadras.controller.js";
 
-export const app = Fastify({
-  logger: true,
-});
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
+import openapiPlugin from './plugins/openapi.js'
+
+export const app = Fastify({ logger: true, });
+
+app.setValidatorCompiler(validatorCompiler)
+app.setSerializerCompiler(serializerCompiler)
 
 registerErrorHandler(app);
 app.register(managementController);
 app.register(passwordRecoveryController);
 
-await app.register(cors, {
-  origin: "http://localhost:5173",
-  credentials: true,
-});
-
+await app.register(cors, { origin: "http://localhost:5173", credentials: true, });
 await app.register(dbPlugin);
+await app.register(openapiPlugin)
 await app.register(replayRetentionPlugin);
 await app.register(betterAuthPlugin);
+await app.register(betterAuthPlugin);
 
-app.register(authController);
+await app.register(authController);
+await app.register(replaysController, { prefix: '/api' });
+await app.register(arenasController, { prefix: '/api' });
+await app.register(quadrasController, { prefix: '/api' });
 
-app.register(replaysController);
-app.register(arenasController);
-app.register(quadrasController);
-
-app.get("/health", async () => {
+app.get("/health", { schema: { hide: true } }, async () => {
   return { status: "ok" };
 });
 
 app.get(
   "/teste-protegido",
-  { preHandler: requireAuth },
+  { preHandler: requireAuth, schema: { hide: true } },
   async () => {
     return {
       message: "Acesso autorizado!",
