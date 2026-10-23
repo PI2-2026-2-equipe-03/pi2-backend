@@ -1,0 +1,152 @@
+{
+  "executedAt": "2026-10-20T17:32:27.981Z",
+  "runner": "Newman 6 / coleção Postman v2.1",
+  "database": "PostgreSQL real em banco descartável",
+  "requests": 10,
+  "assertions": 18,
+  "failures": 0,
+  "executions": [
+    {
+      "name": "01 — Cadastro real",
+      "method": "POST",
+      "status": 201,
+      "assertions": [
+        {
+          "name": "HTTP 201",
+          "passed": true
+        },
+        {
+          "name": "UUID persistido e senha omitida",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "02 — Login real",
+      "method": "POST",
+      "status": 200,
+      "assertions": [
+        {
+          "name": "HTTP 200",
+          "passed": true
+        },
+        {
+          "name": "Sessão de 30 minutos",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "Apoio — Login do gestor",
+      "method": "POST",
+      "status": 200,
+      "assertions": [
+        {
+          "name": "HTTP 200",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "Apoio — Login do administrador",
+      "method": "POST",
+      "status": 200,
+      "assertions": [
+        {
+          "name": "HTTP 200",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "03 — Métricas do administrador",
+      "method": "GET",
+      "status": 200,
+      "assertions": [
+        {
+          "name": "HTTP 200",
+          "passed": true
+        },
+        {
+          "name": "Contagens reais",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "04 — Métricas do gestor",
+      "method": "GET",
+      "status": 200,
+      "assertions": [
+        {
+          "name": "HTTP 200",
+          "passed": true
+        },
+        {
+          "name": "Quadras do gestor",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "05 — Patrocinador com vínculo real",
+      "method": "POST",
+      "status": 201,
+      "assertions": [
+        {
+          "name": "HTTP 201",
+          "passed": true
+        },
+        {
+          "name": "Vínculo persistido",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "06 — Solicitação de replay",
+      "method": "POST",
+      "status": 201,
+      "assertions": [
+        {
+          "name": "HTTP 201",
+          "passed": true
+        },
+        {
+          "name": "Pendente até processamento real",
+          "passed": true
+        },
+        {
+          "name": "Janela de 30 segundos",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "07 — Download de replay disponível",
+      "method": "GET",
+      "status": 200,
+      "assertions": [
+        {
+          "name": "HTTP 200",
+          "passed": true
+        },
+        {
+          "name": "URL vinda do banco",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "name": "08 — Exclusão auditada",
+      "method": "DELETE",
+      "status": 200,
+      "assertions": [
+        {
+          "name": "HTTP 200",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

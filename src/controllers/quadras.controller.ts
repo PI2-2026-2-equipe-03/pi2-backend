@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { parse, uuid } from '../http/errors.js';
 
 import type { FastifyInstance } from "fastify";
 
@@ -13,32 +15,11 @@ interface QuadraDto {
   disponivel: boolean;
 }
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export async function quadrasController(app: FastifyInstance) {
   app.get<{ Querystring: QuadrasQuery }>(
     "/quadras",
     async (request, reply) => {
-      const { arenaId, disponivel } = request.query;
-
-      // Validar o identificador da arena
-      if (arenaId !== undefined && !UUID_REGEX.test(arenaId)) {
-        return reply.code(400).send({
-          message: "arenaId deve ser um UUID válido",
-        });
-      }
-
-      // Validar disponibilidade
-      if (
-        disponivel !== undefined &&
-        disponivel !== "true" &&
-        disponivel !== "false"
-      ) {
-        return reply.code(400).send({
-          message: "disponivel deve ser true ou false",
-        });
-      }
+      const { arenaId, disponivel } = parse(z.object({ arenaId: uuid.optional(), disponivel: z.enum(['true', 'false']).optional() }).strict(), request.query);
 
       const filtroArena = arenaId ?? null;
       const filtroDisponivel =

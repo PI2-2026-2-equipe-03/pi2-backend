@@ -7,7 +7,9 @@
     "test": "vitest run",
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:expire": "tsx src/scripts/expire-replays.ts"
   },
   "keywords": [],
   "author": "",

@@ -1,119 +1,45 @@
 # pi2-backend — TaGravado
 
-API REST do **TaGravado**, sistema de replay para quadras esportivas. Este repositório concentra o backend da aplicação; para o SPA, veja [pi2-frontend](https://github.com/PI2-2026-2-equipe-03/pi2-frontend). Para a visão geral do projeto (contexto, equipe, roadmap), veja [PI2-2026-2-equipe-03](https://github.com/PI2-2026-2-equipe-03/PI2-2026-2-equipe-03).
+API REST para replays de quadras esportivas. Stack atual: Fastify 5, TypeScript, PostgreSQL (`pg`), Better Auth e Zod. O frontend está em [pi2-frontend](https://github.com/PI2-2026-2-equipe-03/pi2-frontend).
 
-## Objetivo
+## Desenvolvimento
 
-Expor os recursos necessários para o fluxo de replay (geração, listagem e download de clipes) e, na Sprint 2, para a **reserva de horários** das quadras.
-
-## Stack
-
-| Camada | Tecnologia |
-|---|---|
-| Framework | Fastify 5 + fastify-type-provider-zod |
-| ORM | Prisma 7 (SQLite em dev, PostgreSQL em prod) |
-| Validação | Zod 4 |
-| Auth | @fastify/jwt — Bearer token (1 dia) |
-| Testes | Vitest + Supertest |
-
-## Quickstart
-
-### Local (SQLite)
+Requisitos: Node.js 22+ e PostgreSQL 16+. Copie `.env.example` para `.env` e ajuste as conexões e uma chave de autenticação segura. O backend atual usa PostgreSQL; não há fluxo SQLite/Prisma.
 
 ```bash
-git clone https://github.com/PI2-2026-2-equipe-03/pi2-backend
-cp .env.example .env
-npm install
-npm run db:migrate
-npm run db:seed      # opcional — dados de exemplo
-npm run dev          # http://localhost:3000
+npm ci
+# No banco vazio, aplique os arquivos src/db/init/*.sql na ordem numérica.
+# Ou use Docker Compose, que inicializa o volume novo automaticamente:
+docker compose up --build
 ```
 
-### Docker (PostgreSQL)
+Sem Docker, com o banco já inicializado:
 
-cp .env.example .env   # ajuste JWT_SECRET
-`docker compose up --build`
-
-O compose sobe um Postgres 16 (`db`) e a aplicação (`api`). Na primeira subida do banco, os scripts em `src/db/init/` (schema e seed) são executados automaticamente.
-
-Se a porta 5432 já estiver ocupada na sua máquina, altere `POSTGRES_PORT` no `.env` para outra porta livre (ex.: `5433`). O container continua escutando em 5432 internamente; só muda a porta no host.
-
-## Estrutura
-
-Neste momento o repositório contém apenas o esqueleto (`src/`). A estrutura-alvo, a ser construída ao longo das Sprints 1 e 2:
-
-```
-src/
-├── env/              validação de variáveis de ambiente (Zod)
-├── http/
-│   ├── controllers/  controller + routes + schemas por domínio
-│   ├── middlewares/  verify-jwt
-│   ├── error-handler.ts
-│   ├── map-domain-error.ts
-│   └── http-schemas.ts   envelopes de resposta { data } / { error }
-├── repositories/     interfaces + implementações (prisma/ e in-memory/)
-├── use-cases/        regras de negócio organizadas por domínio
-├── lib/              PrismaClient singleton (adapter selecionado por env)
-├── app.ts            instância Fastify — plugins, rotas, error handler
-└── server.ts         entry point (chama app.listen)
+```bash
+node --env-file=.env --import tsx src/server.ts
+# Watch mode:
+node --env-file=.env --import tsx --watch src/server.ts
 ```
 
-## Domínios
+`npm start` e `npm run dev` também funcionam com variáveis injetadas pelo ambiente. A porta vem de `PORT` (padrão 3000); o compose usa `API_PORT` para publicar a porta. Health check: `GET /health`.
 
-A ser detalhado após o levantamento de requisitos (Sprint 1). Escopo previsto:
-
-- **Auth** — autenticação de administradores da arena.
-- **Replay** — geração, listagem e download de clipes disparados pela botoeira.
-- **Reserva** — disponibilidade e reserva de horários das quadras (Sprint 2).
-
-## API
-
-Após implementada, a documentação interativa ficará em `http://localhost:3000/docs` (Swagger UI) e o health check em `http://localhost:3000/health`.
-
-## Scripts (previstos)
-
-| Script | Descrição |
-|---|---|
-| `dev` | Servidor em watch mode via tsx |
-| `build` | Compila para `dist/` via tsup |
-| `start` | Executa o build compilado |
-| `lint` / `lint:fix` | ESLint sobre `src/` |
-| `format` | Prettier sobre `src/` |
-| `test` | Vitest (execução única) |
-| `test:watch` | Vitest em modo watch |
-| `test:coverage` | Cobertura v8 (≥ 90% em `use-cases/`) |
-| `db:migrate` | Cria e aplica migrations |
-| `db:generate` | Regenera o Prisma Client |
-| `db:seed` | Popula dados de exemplo |
-| `db:reset` | Reset e reaplicação das migrations |
-| `db:studio` | Abre o Prisma Studio |
-
-## Banco de dados
-
-O provider será controlado por `DATABASE_PROVIDER` no `.env`:
-
-| Valor | Driver | Migrations |
-|---|---|---|
-| `sqlite` (padrão dev) | better-sqlite3 | `prisma/migrations/sqlite/` |
-| `postgres` (Docker / Supabase) | pg | `prisma/migrations/postgres/` |
-
-Para **Supabase**, defina também `DIRECT_URL` (conexão direta, usada apenas por migrations — o runtime usa o pooler):
-
-```dotenv
-DATABASE_URL="postgresql://...@pooler.supabase.com:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://...@supabase.com:5432/postgres"
-```
+Em volume/banco existente, aplique as novas migrações uma única vez. Consulte a [documentação B3-02](docs/regras-de-negocio-implementadas.md) para comandos, oito rotas, payloads, regras, códigos HTTP e limites das integrações de vídeo/e-mail.
 
 ## Testes
 
 ```bash
-npm test
-npm run test:watch
-npm run test:coverage
+npm test                  # Testes unitários; exclui cópias compiladas em dist/
+npm run build             # TypeScript
+TEST_DATABASE_URL=postgresql://usuario@127.0.0.1:5433/postgres npm run test:integration
+npm run db:expire         # Retenção + entrega de exclusões ao adaptador de storage
 ```
 
-Testes unitários usarão repositórios in-memory. Testes e2e usarão Supertest contra a instância `app` com banco de teste isolado. Meta de cobertura: ≥ 90% sobre `src/use-cases/**`.
+A integração requer PostgreSQL local e permissão de criação de banco. Cria e remove seu próprio banco descartável, sem mocks de banco/autenticação. O envio de e-mail e o protocolo de exclusão usam receptores HTTP locais durante os testes.
 
-## Licença
+Importe a [coleção Postman](docs/postman/b302.postman_collection.json) para testar as oito rotas do núcleo. A [documentação de evidências](docs/regras-de-negocio-implementadas.md#validação-reproduzível-e-evidências) explica as variáveis e a execução via Newman.
 
-[MIT](LICENSE)
+## Integrações
+
+A autenticação nativa Better Auth em `/api/auth/*` permanece disponível, além de `/auth/register` e `/auth/login`. Novos cadastros exigem telefone e senha forte. Replays novos ficam pendentes até um serviço real de captura/processamento fornecer a mídia. Marca d'água e buffer de câmera dependem desse serviço.
+
+Recuperação exige `EMAIL_DELIVERY_URL` (HTTPS; token opcional `EMAIL_DELIVERY_TOKEN`). A remoção física de arquivos exige `MEDIA_DELETE_URL` (token opcional `MEDIA_DELETE_TOKEN`). Sem adaptador de storage, os jobs de remoção ficam preservados no banco e os vídeos excluídos/expirados não são acessíveis pela API. Detalhes e payloads estão no documento B3-02.
