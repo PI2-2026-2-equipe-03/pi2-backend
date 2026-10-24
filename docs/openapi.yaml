@@ -1,0 +1,383 @@
+
+openapi: 3.0.3
+
+info:
+  title: TaGravado API
+  version: 1.0.0
+  description: |
+    API REST do TaGravado para consulta de arenas e quadras
+    e gerenciamento de replays esportivos.
+    Os endpoints documentados refletem o comportamento atual
+    conhecido da implementação.
+
+servers:
+  - url: http://localhost:3000
+    description: Ambiente local
+
+tags:
+  - name: Saúde
+  - name: Arenas
+  - name: Quadras
+  - name: Replays
+  - name: Testes
+
+paths:
+  /health:
+    get:
+      tags: [Saúde]
+      summary: Verificar se a API está funcionando
+      responses:
+        "200":
+          description: API funcionando
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /teste-protegido:
+    get:
+      tags: [Testes]
+      summary: Testar acesso a uma rota protegida
+      security:
+      - SessionCookie: []
+      description: Requer autenticação reconhecida pelo middleware da aplicação.
+      responses:
+        "200":
+          description: Acesso autorizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Acesso autorizado!
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /arenas:
+    get:
+      tags: [Arenas]
+      summary: Listar arenas
+      security:
+        - SessionCookie: []
+      description: Permite filtrar arenas por cidade e nome.
+      parameters:
+        - name: cidade
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filtro parcial por cidade.
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filtro parcial pelo nome da arena.
+      responses:
+        "200":
+          description: Arenas encontradas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Arena"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /quadras:
+    get:
+      tags: [Quadras]
+      summary: Listar quadras
+      security:
+        - SessionCookie: []
+      description: Permite filtrar quadras por arena e disponibilidade.
+      parameters:
+        - name: arenaId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Identificador UUID da arena.
+        - name: disponivel
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filtra pela disponibilidade da quadra.
+      responses:
+        "200":
+          description: Quadras encontradas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Quadra"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /replays:
+    post:
+      tags: [Replays]
+      summary: Solicitar a criação de um replay
+      security:
+        - SessionCookie: []
+      description: |
+        Requer autenticação e permissão para gerenciar a quadra.
+        A operação registra o replay com status pendente.
+        A captura real do vídeo não é realizada por este endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courtId]
+              properties:
+                courtId:
+                  type: string
+                  format: uuid
+                  description: Identificador da quadra.
+      responses:
+        "201":
+          description: Replay registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ReplayCriado"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Usuário sem permissão para gerenciar a quadra
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [Replays]
+      summary: Listar replays do usuário autenticado
+      security:
+        - SessionCookie: []
+      description: Requer autenticação.
+      responses:
+        "200":
+          description: Replays encontrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReplayListado"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /replays/{id}/download:
+    get:
+      tags: [Replays]
+      summary: Obter link para download de um replay
+      security:
+        - SessionCookie: []
+      description: |
+        Requer autenticação. Retorna a URL do replay se ele estiver
+        disponível, não expirado e autorizado para o usuário.
+        A resposta contém um link, não necessariamente o arquivo MP4 diretamente.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Identificador UUID do replay.
+      responses:
+        "200":
+          description: Link de download encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      downloadUrl:
+                        type: string
+                        nullable: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Replay não encontrado ou indisponível
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+      description: |
+        Sessão do Better Auth enviada por cookie.
+        O nome deve corresponder ao cookie configurado
+        no ambiente em execução.
+  schemas:
+    Arena:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        clienteId:
+          type: string
+          format: uuid
+        nome:
+          type: string
+        cidade:
+          type: string
+        endereco:
+          type: string
+        fotoUrl:
+          type: string
+          nullable: true
+
+    Quadra:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        arenaId:
+          type: string
+          format: uuid
+        nome:
+          type: string
+        disponivel:
+          type: boolean
+
+    ReplayCriado:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courtId:
+          type: string
+          format: uuid
+        downloadUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [pendente, disponivel, excluido]
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ReplayListado:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courtId:
+          type: string
+          format: uuid
+        downloadUrl:
+          type: string
+          nullable: true
+        recordingDate:
+          type: string
+          format: date
+        recordingTime:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        courtName:
+          type: string
+        arenaName:
+          type: string
+        city:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Requisição inválida
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+    Unauthorized:
+      description: Usuário não autenticado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+
+    InternalError:
+      description: Erro interno do servidor
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string

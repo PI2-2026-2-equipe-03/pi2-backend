@@ -18,6 +18,7 @@ services:
       timeout: 5s
       retries: 5
   
+
   api:
     build:
       context: .
@@ -28,6 +29,7 @@ services:
       NODE_ENV: development
       PORT: ${API_PORT}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      AUTH_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     ports:
       - "${API_PORT}:3000"
     volumes:
@@ -38,7 +40,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
+      
 volumes:
   tagravado_db_data:
   api_node_modules:
