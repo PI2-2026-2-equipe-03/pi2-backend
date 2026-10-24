@@ -5,7 +5,10 @@ import { HttpError, parse, uuid } from '../http/errors.js'
 import { docOnly } from '../schemas/doc-only.js'
 import { errorSchema, sponsorBodySchema, sponsorResponseSchema, adminMetricsSchema, managerMetricsSchema } from '../schemas/api.js'
 
-const security = [{ cookieAuth: [] }]
+const security: { [key: string]: string[] }[] = [
+  { bearerAuth: [] },
+  { cookieAuth: [] },
+]
 
 const sponsorSchema = z.object({
   name: z.string().trim().min(2, 'Informe o nome do patrocinador').max(150),

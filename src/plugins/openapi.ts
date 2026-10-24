@@ -18,7 +18,16 @@ export default fp(async (app) => {
       ],
       components: {
         securitySchemes: {
-          cookieAuth: { type: 'apiKey', in: 'cookie', name: 'better-auth.session_token' },
+          cookieAuth: {
+            type: 'apiKey',
+            in: 'cookie',
+            name: 'better-auth.session_token',
+          },
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+          },
         },
       },
     },
@@ -26,13 +35,26 @@ export default fp(async (app) => {
       try {
         return jsonSchemaTransform(args)
       } catch (err) {
-        app.log.error({ url: args.url, method: args.route.method }, 'schema Zod inválido')
+        app.log.error(
+          { url: args.url, method: args.route.method },
+          'schema Zod inválido',
+        )
         throw err
       }
     },
   })
 
-  await app.register(swaggerUi, { routePrefix: '/docs' })
+  await app.register(swaggerUi, {
+    routePrefix: '/api-docs',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: true,
+    },
+  })
 
-  app.get('/api/openapi.json', { schema: { hide: true } }, async () => app.swagger())
+  app.get(
+    '/api/openapi.json',
+    { schema: { hide: true } },
+    async () => app.swagger(),
+  )
 })

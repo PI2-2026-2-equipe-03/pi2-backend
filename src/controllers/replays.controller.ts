@@ -24,7 +24,10 @@ const fields = `r.id_replay AS id, r.id_quadra AS "courtId", r.arquivo_url AS "d
 
 export async function replaysController(app: FastifyInstance) {
     const r = app.withTypeProvider<ZodTypeProvider>()
-    const security = [{ cookieAuth: [] }]
+    const security: { [key: string]: string[] }[] = [
+  { bearerAuth: [] },
+  { cookieAuth: [] },
+]
 
     r.post('/replays', {
         ...docOnly, preHandler: requireAuth,
