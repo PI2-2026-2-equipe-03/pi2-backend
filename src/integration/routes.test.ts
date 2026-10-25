@@ -156,7 +156,111 @@ describe('B3-02 — rotas com PostgreSQL real, sem mock', () => {
     expect(own.json().courts).toHaveLength(1)
     expect(own.json().totalReplays).toBe(2)
   })
-  it('cadastra e vincula patrocinador, detecta duplicidade e impede vínculo com quadra alheia', async () => {
+  it('cria solicitação de gestor com persistência real e valida os dados', async () => {
+    const payload = {
+      cpf: '52998224725',
+      cnpj: '12345678000199',
+      companyName: 'Arena Solicitação B404',
+      courtQuantity: 2,
+      address: {
+        street: 'Rua Principal, 100',
+        neighborhood: 'Centro',
+        zipCode: '60000000',
+        city: 'Fortaleza',
+        state: 'CE',
+      },
+    }
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/manager-requests',
+      headers: bearer(user.token),
+      payload,
+    })
+
+    expect(response.statusCode, response.body).toBe(201)
+    expect(response.json().status).toBe('PENDING')
+
+    const id = response.json().id
+    createdId = String(id)
+
+    const persisted = await db.query(
+      'SELECT * FROM manager_request WHERE id = $1',
+      [id],
+    )
+    expect(persisted.rowCount).toBe(1)
+    expect(persisted.rows[0].razao_social).toBe(payload.companyName)
+
+    const duplicate = await app.inject({
+      method: 'POST',
+      url: '/manager-requests',
+      headers: bearer(user.token),
+      payload: { ...payload, cpf: '11144477735', cnpj: '98765432000199' },
+    })
+    expect(duplicate.statusCode).toBe(409)
+
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/manager-requests',
+      headers: bearer(user.token),
+      payload: { ...payload, cpf: '123' },
+    })
+    expect(invalid.statusCode).toBe(400)
+
+    const unauthenticated = await app.inject({
+      method: 'POST',
+      url: '/manager-requests',
+      payload,
+    })
+    expect(unauthenticated.statusCode).toBe(401)
+  })
+
+  it('admin aprova solicitação e cria gestor; usuário comum não pode analisar', async () => {
+    const forbidden = await app.inject({
+      method: 'PATCH',
+      url: `/manager-requests/${createdId}`,
+      headers: bearer(user.token),
+      payload: { status: 'APPROVED' },
+    })
+    expect(forbidden.statusCode).toBe(403)
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/manager-requests/${createdId}`,
+      headers: bearer(admin.token),
+      payload: { status: 'APPROVED' },
+    })
+    expect(response.statusCode, response.body).toBe(200)
+    expect(response.json().status).toBe('APPROVED')
+
+    const persisted = await db.query(
+      `SELECT mr.status, mr.analisado_em, ga.id_usuario
+       FROM manager_request mr
+       JOIN gestor_arena ga ON ga.id_usuario = mr.id_usuario
+       WHERE mr.id = $1`,
+      [createdId],
+    )
+    expect(persisted.rowCount).toBe(1)
+    expect(persisted.rows[0].status).toBe('APPROVED')
+    expect(persisted.rows[0].analisado_em).not.toBeNull()
+
+    const repeated = await app.inject({
+      method: 'PATCH',
+      url: `/manager-requests/${createdId}`,
+      headers: bearer(admin.token),
+      payload: { status: 'REJECTED' },
+    })
+    expect(repeated.statusCode).toBe(409)
+
+    const missing = await app.inject({
+      method: 'PATCH',
+      url: '/manager-requests/999999999',
+      headers: bearer(admin.token),
+      payload: { status: 'REJECTED' },
+    })
+    expect(missing.statusCode).toBe(404)
+})
+it('cadastra e vincula patrocinador, detecta duplicidade e impede vínculo com quadra alheia', async () => {
     const payload = { name: 'Patrocínio B302', imageUrl: 'https://example.com/logo.png', duration: 10, value: 500, courtIds: [courtId] }
     const response = await app.inject({ method: 'POST', url: '/sponsors', headers: bearer(manager.token), payload })
     expect(response.statusCode, response.body).toBe(201)
@@ -202,6 +306,44 @@ describe('B3-02 — rotas com PostgreSQL real, sem mock', () => {
     expect(response.statusCode, response.body).toBe(200)
     expect(response.json().data.map((item: {id:string}) => item.id)).toEqual([availableId])
   })
+
+
+  it('detalhes do replay retorna dados persistidos e trata IDs inválidos ou indisponíveis', async () => {
+    const response = await app.inject({
+      url: `/replays/${availableId}`,
+      headers: bearer(user.token),
+    })
+
+    expect(response.statusCode, response.body).toBe(200)
+    expect(response.json().data).toMatchObject({
+      id: availableId,
+      court: { id: courtId, name: 'Quadra B302' },
+      city: 'Fortaleza',
+      duration: 30,
+      videoUrl: 'https://example.com/real-db-fixture.mp4',
+    })
+    expect(response.json().data.recordedAt).toBeTruthy()
+    expect(response.json().data.expiresAt).toBeTruthy()
+
+    for (const [id, status] of [
+      ['invalido', 400],
+      [randomUUID(), 404],
+      [expiredId, 404],
+      [pendingId, 404],
+    ] as const) {
+      const result = await app.inject({
+        url: `/replays/${id}`,
+        headers: bearer(user.token),
+      })
+      expect(result.statusCode, `${id}: ${result.body}`).toBe(status)
+    }
+
+    expect((await app.inject({
+      url: `/replays/${availableId}`,
+    })).statusCode).toBe(401)
+  })
+
+
   it('download diferencia UUID inválido, ausente, expirado e pendente', async () => {
     for (const [id, status] of [['x',400],[randomUUID(),404],[expiredId,404],[pendingId,422]] as const) {
       expect((await app.inject({ url: `/replays/${id}/download`, headers: bearer(user.token) })).statusCode).toBe(status)

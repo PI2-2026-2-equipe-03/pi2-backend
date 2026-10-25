@@ -129,3 +129,45 @@ export const resetPasswordBodySchema = z.object({
   password: z.string(),
   passwordConfirmation: z.string(),
 })
+export const replayDetailSchema = z.object({
+  id,
+  court: z.object({
+    id,
+    name: z.string(),
+  }),
+  city: z.string(),
+  recordedAt: z.iso.datetime(),
+  duration: z.number(),
+  videoUrl: z.string(),
+  expiresAt: z.iso.datetime(),
+})
+
+
+export const managerRequestBodySchema = z.object({
+  cpf: z.string().regex(/^\d{11}$/, 'O CPF deve conter 11 dígitos'),
+  cnpj: z.string().regex(/^\d{14}$/, 'O CNPJ deve conter 14 dígitos').optional(),
+  companyName: z.string().trim().min(2, 'Informe a razão social').max(150),
+  courtQuantity: z.number().int().positive('A quantidade de quadras deve ser positiva').max(1000),
+  address: z.object({
+    street: z.string().trim().min(2).max(150),
+    neighborhood: z.string().trim().min(2).max(100),
+    zipCode: z.string().regex(/^\d{8}$/, 'O CEP deve conter 8 dígitos'),
+    city: z.string().trim().min(2).max(100),
+    state: z.string().regex(/^[A-Za-z]{2}$/, 'Informe a sigla do estado'),
+  }).strict(),
+}).strict()
+
+export const managerRequestParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+})
+
+export const managerRequestStatusSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED']),
+}).strict()
+
+export const managerRequestResponseSchema = z.object({
+  id: z.number().int(),
+  userId: z.guid(),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  message: z.string(),
+})

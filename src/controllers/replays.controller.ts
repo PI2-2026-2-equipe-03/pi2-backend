@@ -5,7 +5,7 @@ import { HttpError, parse, replayParams, uuid } from '../http/errors.js'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { docOnly } from '../schemas/doc-only.js'
 import {
-    data, errorSchema, messageSchema, replayCreateBodySchema, replayDeleteBodySchema,
+    data, errorSchema, messageSchema, replayCreateBodySchema, replayDeleteBodySchema, replayDetailSchema,
     replayDownloadSchema, replayFiltersSchema, replayListItemSchema, replaySchema,
 } from '../schemas/api.js'
 
@@ -88,7 +88,64 @@ export async function replaysController(app: FastifyInstance) {
         return { data: result.rows }
     })
 
-    r.get('/replays/:id/download', {
+        r.get('/replays/:id', {
+        ...docOnly, preHandler: requireAuth,
+        schema: {
+            tags: ['replays'],
+            summary: 'Consultar detalhes de um replay',
+            security,
+            params: z.object({ id: z.guid() }),
+            response: {
+                200: data(replayDetailSchema),
+                400: errorSchema,
+                401: errorSchema,
+                404: errorSchema,
+            },
+        },
+    }, async request => {
+        const { id } = parse(replayParams, request.params)
+
+        const result = await app.pg.query(`
+            SELECT
+                r.id_replay AS id,
+                q.id_quadra AS "courtId",
+                q.nome AS "courtName",
+                a.cidade AS city,
+                (r.data_geracao + r.hora_geracao) AT TIME ZONE 'America/Fortaleza' AS "recordedAt",
+                r.duracao_segundos AS duration,
+                r.arquivo_url AS "videoUrl",
+                r.expira_em AS "expiresAt"
+            FROM replay r
+            JOIN quadra q ON q.id_quadra = r.id_quadra
+            JOIN arena a ON a.id_arena = q.id_arena
+            WHERE r.id_replay = $1
+              AND r.status = 'disponivel'
+              AND r.arquivo_url IS NOT NULL
+              AND r.expira_em > now()
+        `, [id])
+
+        if (!result.rowCount) {
+            throw new HttpError(404, 'Replay não encontrado ou expirado')
+        }
+
+        const replay = result.rows[0]
+
+        return {
+            data: {
+                id: replay.id,
+                court: {
+                    id: replay.courtId,
+                    name: replay.courtName,
+                },
+                city: replay.city,
+                recordedAt: new Date(replay.recordedAt).toISOString(),
+                duration: replay.duration,
+                videoUrl: replay.videoUrl,
+                expiresAt: new Date(replay.expiresAt).toISOString(),
+            },
+        }
+    })
+	r.get('/replays/:id/download', {
         ...docOnly, preHandler: requireAuth,
         schema: {
             tags: ['replays'], summary: 'Obter link de download', security,
