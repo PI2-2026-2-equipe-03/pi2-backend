@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto'
-import { hashPassword, verifyPassword } from 'better-auth/crypto'
+import { hashPassword, verifyPassword } from '../lib/password.js'
 import { authPool } from '../lib/auth.js'
 import { HttpError, parse, strongPassword } from '../http/errors.js'
 import { docOnly } from '../schemas/doc-only.js'
