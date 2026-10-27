@@ -3,6 +3,7 @@ import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { bearer } from 'better-auth/plugins'
 import { Pool } from 'pg'
 import { strongPassword } from '../http/errors.js'
+import { hashPassword, verifyPassword } from './password.js'
 
 if (!process.env.AUTH_DATABASE_URL) throw new Error('AUTH_DATABASE_URL não configurada')
 export const authPool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL })
@@ -15,7 +16,10 @@ export const auth = betterAuth({
   trustedOrigins: ['http://localhost:5173'],
   plugins: [bearer()],
   user: { additionalFields: { phone: { type: 'string', required: true } } },
-  emailAndPassword: { enabled: true, minPasswordLength: 8, maxPasswordLength: 128 },
+  emailAndPassword: { 
+    enabled: true, minPasswordLength: 8, maxPasswordLength: 128,
+    password: { hash: hashPassword, verify: verifyPassword },
+   },
   session: { expiresIn: 1800, updateAge: 0, cookieCache: { enabled: false } },
   rateLimit: { enabled: true, storage: 'database', window: 60, max: 100, customRules: {
     '/sign-in/email': { window: 60, max: 100 },
