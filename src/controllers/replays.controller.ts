@@ -25,9 +25,9 @@ const fields = `r.id_replay AS id, r.id_quadra AS "courtId", r.arquivo_url AS "d
 export async function replaysController(app: FastifyInstance) {
     const r = app.withTypeProvider<ZodTypeProvider>()
     const security: { [key: string]: string[] }[] = [
-  { bearerAuth: [] },
-  { cookieAuth: [] },
-]
+        { bearerAuth: [] },
+        { cookieAuth: [] },
+    ]
 
     r.post('/replays', {
         ...docOnly, preHandler: requireAuth,
@@ -88,7 +88,7 @@ export async function replaysController(app: FastifyInstance) {
         return { data: result.rows }
     })
 
-        r.get('/replays/:id', {
+    r.get('/replays/:id', {
         ...docOnly, preHandler: requireAuth,
         schema: {
             tags: ['replays'],
@@ -145,7 +145,7 @@ export async function replaysController(app: FastifyInstance) {
             },
         }
     })
-	r.get('/replays/:id/download', {
+    r.get('/replays/:id/download', {
         ...docOnly, preHandler: requireAuth,
         schema: {
             tags: ['replays'], summary: 'Obter link de download', security,
