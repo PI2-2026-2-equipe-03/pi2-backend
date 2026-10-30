@@ -25,7 +25,37 @@ app.setSerializerCompiler(serializerCompiler)
 
 registerErrorHandler(app);
 
-await app.register(cors, { origin: "http://localhost:5173", credentials: true, });
+const environment = process.env.NODE_ENV ?? "development";
+
+const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (allowedOrigins.length === 0) {
+  if (environment === "development" || environment === "test") {
+    allowedOrigins.push("http://localhost:5173");
+  } else {
+    throw new Error("CORS_ORIGINS é obrigatório em staging/produção");
+  }
+}
+
+for (const origin of allowedOrigins) {
+  const url = new URL(origin);
+
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.origin !== origin
+  ) {
+    throw new Error(`Origem inválida em CORS_ORIGINS: ${origin}`);
+  }
+}
+
+await app.register(cors, {
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+});
 await app.register(dbPlugin);
 await app.register(openapiPlugin)
 await app.register(replayRetentionPlugin);
@@ -51,3 +81,4 @@ app.get(
     };
   }
 );
+
