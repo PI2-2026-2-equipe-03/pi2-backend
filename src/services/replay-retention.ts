@@ -1,21 +1,9 @@
 import type { Pool } from 'pg'
+import { expirarReplaysVencidos } from '../repositories/replay.repository.js'
 
 // A referência ao arquivo é preservada na fila até o storage confirmar a exclusão.
 export async function expireReplays(pool: Pool) {
-    const client = await pool.connect()
-    try {
-        await client.query('BEGIN')
-        const expired = await client.query(`WITH expired AS (
-      UPDATE replay SET status='excluido' WHERE expira_em<=now() AND status<>'excluido'
-      RETURNING id_replay,arquivo_url
-    ) INSERT INTO media_deletion_job(id_replay,arquivo_url,motivo)
-      SELECT id_replay,arquivo_url,'Retenção de 168 horas' FROM expired WHERE arquivo_url IS NOT NULL
-      ON CONFLICT(id_replay) DO NOTHING`)
-        await client.query(`UPDATE replay SET arquivo_url=NULL WHERE status='excluido' AND expira_em<=now()`)
-        await client.query('COMMIT')
-        return expired.rowCount ?? 0
-    } catch (error) { await client.query('ROLLBACK'); throw error }
-    finally { client.release() }
+    return expirarReplaysVencidos(pool)
 }
 
 export async function deleteStoredMedia(pool: Pool) {
