@@ -1,48 +1,64 @@
+# compose individual do backend — espelha o serviço db + backend do compose central
+# (PI2-2026-2-equipe-03). o nome fixo mantém o volume do banco já existente.
+name: pi2-backend
+
 services:
   db:
     image: postgres:16-alpine
     container_name: tagravado-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-tagravado}
+      POSTGRES_USER: ${POSTGRES_USER:-tagravado}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tagravado}
     ports:
-      - "${POSTGRES_PORT}:5432"
+      # se a 5432 já estiver ocupada no host (Postgres local), sobrescreva POSTGRES_PORT no .env.
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - tagravado_db_data:/var/lib/postgresql/data
       - ./src/db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tagravado} -d ${POSTGRES_DB:-tagravado}"]
       interval: 5s
       timeout: 5s
       retries: 5
-  
-  api:
+    networks:
+      - pi2-net
+
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: tagravado-api
+    container_name: tagravado-backend
     restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: ${API_PORT}
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      AUTH_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      REPLAY_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-    ports:
-      - "${API_PORT}:3000"
-    volumes:
-      - ./src:/app/src
-      - ./package.json:/app/package.json
-      - ./tsconfig.json:/app/tsconfig.json
-      - api_node_modules:/app/node_modules
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      # API_PORT é o nome antigo; continua aceito para não quebrar .env já existente.
+      - "${BACKEND_PORT:-${API_PORT:-3000}}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: 0.0.0.0
+      PORT: 3000
+      # backend conecta no db pelo nome do serviço na rede interna.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD:-tagravado}@db:5432/${POSTGRES_DB:-tagravado}
+      AUTH_DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD:-tagravado}@db:5432/${POSTGRES_DB:-tagravado}
+      REPLAY_DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD:-tagravado}@db:5432/${POSTGRES_DB:-tagravado}
+      # BETTER_AUTH_URL = origem pública que o browser enxerga (vite proxy mantém same-origin em dev).
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:5173}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-env}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+    volumes:
+      # Bind mount + volume anônimo em node_modules: hot reload via `tsx watch` sem sobrescrever deps do container.
+      - .:/app
+      - /app/node_modules
+    networks:
+      - pi2-net
+
+networks:
+  pi2-net:
+    name: pi2-net
+    driver: bridge
 
 volumes:
   tagravado_db_data:
-  api_node_modules:

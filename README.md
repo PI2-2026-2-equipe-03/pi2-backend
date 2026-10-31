@@ -21,7 +21,7 @@ node --env-file=.env --import tsx src/server.ts
 node --env-file=.env --import tsx --watch src/server.ts
 ```
 
-`npm start` e `npm run dev` também funcionam com variáveis injetadas pelo ambiente. A porta vem de `PORT` (padrão 3000); o compose usa `API_PORT` para publicar a porta. Health check: `GET /health`.
+`npm start` e `npm run dev` também funcionam com variáveis injetadas pelo ambiente. A porta vem de `PORT` (padrão 3000); o compose usa `BACKEND_PORT` para publicar a porta. Health check: `GET /health`.
 
 Em volume/banco existente, aplique as novas migrações uma única vez. Consulte a [documentação B3-02](docs/regras-de-negocio-implementadas.md) para comandos, oito rotas, payloads, regras, códigos HTTP e limites das integrações de vídeo/e-mail.
 
