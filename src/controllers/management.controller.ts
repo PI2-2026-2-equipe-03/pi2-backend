@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '../middlewares/require-auth.js'
 import { HttpError, parse, uuid } from '../http/errors.js'
 import { docOnly } from '../schemas/doc-only.js'
+import { requireRole } from '../middlewares/require-role.js'
 import {
   errorSchema,
   sponsorBodySchema,
@@ -29,7 +30,7 @@ const sponsorSchema = z.object({
 
 export async function managementController(app: FastifyInstance) {
   app.post('/sponsors', {
-  ...docOnly, preHandler: requireAuth,
+  ...docOnly,  preHandler: [requireAuth, requireRole('CLI', 'ADM')],
   schema: {
     tags: ['sponsors'], summary: 'Cadastrar patrocinador', security,
     body: sponsorBodySchema,
@@ -58,7 +59,7 @@ export async function managementController(app: FastifyInstance) {
   })
 
   app.get('/admin/metrics', {
-  ...docOnly, preHandler: requireAuth,
+  ...docOnly, preHandler: [requireAuth, requireRole('ADM')],
   schema: {
     tags: ['metrics'], summary: 'Métricas do administrador', security,
     response: { 200: adminMetricsSchema, 401: errorSchema, 403: errorSchema },
@@ -77,7 +78,7 @@ export async function managementController(app: FastifyInstance) {
   })
 
   app.get('/manager/metrics', {
-  ...docOnly, preHandler: requireAuth,
+  ...docOnly, preHandler: [requireAuth, requireRole('CLI', 'ADM')],
   schema: {
     tags: ['metrics'], summary: 'Métricas do gestor', security,
     response: { 200: managerMetricsSchema, 401: errorSchema, 403: errorSchema },
@@ -103,7 +104,7 @@ export async function managementController(app: FastifyInstance) {
 
   app.patch('/manager-requests/:id', {
     ...docOnly,
-    preHandler: requireAuth,
+    preHandler: [requireAuth, requireRole('ADM')],
     schema: {
       tags: ['manager-requests'],
       summary: 'Aprovar ou rejeitar solicitação de gestor',

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { requireRole } from '../middlewares/require-role.js'
 import { z } from 'zod'
 import { requireAuth } from '../middlewares/require-auth.js'
 import { HttpError, parse, replayParams, uuid } from '../http/errors.js'
@@ -30,7 +31,7 @@ export async function replaysController(app: FastifyInstance) {
     ]
 
     r.post('/replays', {
-        ...docOnly, preHandler: requireAuth,
+        ...docOnly, preHandler: [requireAuth, requireRole('CLI', 'ADM')],
         schema: {
             tags: ['replays'], summary: 'Gerar replay', security,
             body: replayCreateBodySchema,
@@ -164,7 +165,7 @@ export async function replaysController(app: FastifyInstance) {
     })
 
     r.delete('/replays/:id', {
-        ...docOnly, preHandler: requireAuth,
+        ...docOnly,  preHandler: [requireAuth, requireRole('CLI', 'ADM')],
         schema: {
             tags: ['replays'], summary: 'Excluir replay', security,
             params: z.object({ id: z.guid() }),
