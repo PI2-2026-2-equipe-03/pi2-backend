@@ -46,6 +46,8 @@ services:
       REPLAY_DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD:-tagravado}@db:5432/${POSTGRES_DB:-tagravado}
       # BETTER_AUTH_URL = origem pública que o browser enxerga (vite proxy mantém same-origin em dev).
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:5173}
+      # origens aceitas pelo Better Auth, separadas por vírgula; inclua o IP da rede para testar no celular.
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:5173}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-env}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
     volumes:

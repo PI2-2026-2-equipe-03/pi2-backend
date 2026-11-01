@@ -10,10 +10,16 @@ export const authPool = new Pool({ connectionString: process.env.AUTH_DATABASE_U
 // Locks não ocupam conexões usadas pelo handler Better Auth.
 export const authLockPool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL, max: 4 })
 
+// Origens por ambiente: acessar pelo IP da rede local (celular) exige declarar esse IP.
+const trustedOrigins = (process.env.TRUSTED_ORIGINS || 'http://localhost:5173')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean)
+
 export const auth = betterAuth({
   database: authPool,
   advanced: { database: { generateId: 'uuid' } },
-  trustedOrigins: ['http://localhost:5173'],
+  trustedOrigins,
   plugins: [bearer()],
   user: { additionalFields: { phone: { type: 'string', required: true } } },
   emailAndPassword: { 
