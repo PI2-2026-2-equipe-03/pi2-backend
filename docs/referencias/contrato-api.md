@@ -8,6 +8,7 @@ A tabela abaixo relaciona os endpoints definidos no contrato da API com os requi
 |---|---|---|---|
 | POST | `/auth/register` | RF-01 | Cadastro de usuário |
 | POST | `/auth/login` | RF-02 | Login de usuário |
+| GET | `/me` | RF-02 | Usuário autenticado e seu perfil |
 | GET | `/admin/metrics` | RF-03 | Métricas para o administrador |
 | GET | `/manager/metrics` | RF-04 | Métricas para o cliente/gestor |
 | POST | `/replays` | RF-05 / RF-09 | Grava o replay e associa quadra, data e horário |
@@ -141,6 +142,33 @@ Status: `429 Too Many Requests`
   "retryAfter": 300
 }
 ```
+
+### GET /me
+
+Retorna o usuário da sessão atual e seu perfil de acesso. O frontend usa o perfil apenas para adaptar a interface; a autorização continua sendo feita em cada rota.
+
+### Saída de sucesso
+
+Status: `200 OK`
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name": "João da Silva",
+    "email": "joao@email.com",
+    "role": "USR"
+  }
+}
+```
+
+O campo `role` assume os valores `ADM`, `CLI` ou `USR`.
+
+### Possíveis erros
+
+Status: `401 Unauthorized`: sessão ausente, inválida ou expirada.
+
+Status: `403 Forbidden`: cadastro do usuário incompleto.
 
 ## 3. Solicitar recuperação de senha
 

@@ -78,6 +78,12 @@ export const authUserSchema = z.object({
 export const sessionUserSchema = authUserSchema.extend({
   role: z.enum(['USER', 'MANAGER', 'ADMIN']),
 })
+export const currentUserSchema = z.object({
+  id,
+  name: z.string(),
+  email: z.string(),
+  role: z.enum(['ADM', 'CLI', 'USR']),
+})
 
 export const registerBodySchema = z.object({
   name: z.string(),

@@ -4,9 +4,10 @@ import { z } from 'zod'
 import { auth, authPool, authLockPool } from '../lib/auth.js'
 import { HttpError, parse, phone, strongPassword } from '../http/errors.js'
 import { registrarFalha, limparTentativas } from '../services/account-lockout.js'
+import { requireAuth } from '../middlewares/require-auth.js'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import {
-  errorSchema, authUserSchema, registerBodySchema, loginBodySchema,
+  data, errorSchema, authUserSchema, currentUserSchema, registerBodySchema, loginBodySchema,
   sessionUserSchema, loginResponseSchema,
 } from '../schemas/api.js'
 
@@ -136,6 +137,21 @@ export async function authController(app: FastifyInstance) {
       response: { 200: loginResponseSchema, 400: errorSchema, 401: errorSchema, 429: errorSchema },
     },
   }, (request, reply) => handleAuth(request, reply, '/api/auth/sign-in/email'))
+
+  // Fora de /auth: o proxy do frontend encaminha /api/auth/* direto ao Better Auth.
+  r.get('/me', {
+    ...docOnly,
+    preHandler: requireAuth,
+    schema: {
+      tags: ['auth'], summary: 'Usuário autenticado e seu perfil', security: [{ bearerAuth: [] }, ...cookie],
+      response: { 200: data(currentUserSchema), 401: errorSchema, 403: errorSchema },
+    },
+  }, async request => {
+    const user = request.authUser!
+    const profile = await authPool.query<{ codigo: 'ADM' | 'CLI' | 'USR' }>(`SELECT p.codigo FROM usuario_auth ua
+      JOIN usuario u ON u.id_usuario=ua.id_usuario JOIN perfil p ON p.id_perfil=u.id_perfil WHERE ua.id_auth=$1`, [user.id])
+    return { data: { id: user.id, name: user.name, email: user.email, role: profile.rows[0]!.codigo } }
+  })
 
   r.post('/api/auth/sign-out', {
     ...docOnly,

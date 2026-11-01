@@ -133,8 +133,15 @@ describe('B3-02 — rotas com PostgreSQL real, sem mock', () => {
         const cookie = response.cookies.map(item => `${item.name}=${item.value}`).join('; ')
         expect((await app.inject({ url: '/manager/metrics', headers: { cookie } })).statusCode).toBe(200)
     })
+    it('informa o perfil do usuário autenticado', async () => {
+        for (const [account, role] of [[admin, 'ADM'], [manager, 'CLI'], [user, 'USR']] as const) {
+            const response = await app.inject({ url: '/me', headers: bearer(account.token) })
+            expect(response.statusCode, response.body).toBe(200)
+            expect(response.json().data).toMatchObject({ id: account.id, role })
+        }
+    })
     it('protege todas as rotas privadas com 401', async () => {
-        for (const [method, url] of [['GET', '/admin/metrics'], ['GET', '/manager/metrics'], ['POST', '/sponsors'], ['POST', '/replays'], ['GET', '/replays'], ['GET', `/replays/${availableId}/download`], ['DELETE', `/replays/${availableId}`]] as const) {
+        for (const [method, url] of [['GET', '/me'], ['GET', '/admin/metrics'], ['GET', '/manager/metrics'], ['POST', '/sponsors'], ['POST', '/replays'], ['GET', '/replays'], ['GET', `/replays/${availableId}/download`], ['DELETE', `/replays/${availableId}`]] as const) {
             expect((await app.inject({ method, url })).statusCode, url).toBe(401)
         }
     })
