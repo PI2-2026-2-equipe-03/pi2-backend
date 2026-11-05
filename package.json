@@ -9,6 +9,7 @@
     "start": "tsx src/server.ts",
     "build": "tsc",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:automatation": "jest --runInBand --detectOpenHandles",
     "db:expire": "tsx src/scripts/expire-replays.ts",
     "db:seed": "tsx src/scripts/seed.ts"
   },
