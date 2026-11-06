@@ -9,7 +9,7 @@
     "start": "tsx src/server.ts",
     "build": "tsc",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:automatation": "jest --runInBand --detectOpenHandles",
+    "test:rn": "jest regrasNegocio.test.js --runInBand --verbose --detectOpenHandles",
     "db:expire": "tsx src/scripts/expire-replays.ts",
     "db:seed": "tsx src/scripts/seed.ts"
   },
@@ -29,8 +29,10 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^26.6.2",
     "@types/pg": "^8.23.1",
+    "jest": "^30.5.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
