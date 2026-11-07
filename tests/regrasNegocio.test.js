@@ -9,12 +9,19 @@ const LOGIN_DELAY_MS = Number(process.env.LOGIN_ATTEMPT_DELAY_MS || 0);
 
 const ROTAS = {
   signIn: '/auth/sign-in/email',
+  signInContract: '/auth/login',
   signUp: '/auth/sign-up/email',
   session: '/auth/get-session',
   me: '/me',
+  
   quadras: '/admin/quadras',
   quadrasPublic: '/quadras',
+ 
+  adminMetrics: '/admin/metrics',
+  managerMetrics: '/manager/metrics',
   replays: '/replays',
+  sponsors: '/sponsors',
+  managerRequests: '/manager-requests',
   replayTrigger: '/replays/trigger',
   replayCleanup: '/replays/cleanup-expired',
 };
