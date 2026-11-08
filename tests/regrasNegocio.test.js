@@ -1,6 +1,6 @@
 const { execSync } = require('node:child_process');
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-jest.setTimeout(30000);
 
 const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 const ORIGIN = process.env.ORIGIN || 'http://localhost:5173';

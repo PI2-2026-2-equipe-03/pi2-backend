@@ -9,7 +9,8 @@
     "start": "tsx src/server.ts",
     "build": "tsc",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:rn": "jest regrasNegocio.test.js --runInBand --verbose --detectOpenHandles",
+    "test:rn": "vitest run tests/regrasNegocio.test.js --reporter=verbose",
+    "test:watch": "vitest",
     "db:expire": "tsx src/scripts/expire-replays.ts",
     "db:seed": "tsx src/scripts/seed.ts"
   },
