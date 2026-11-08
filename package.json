@@ -11,6 +11,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:rn": "vitest run tests/regrasNegocio.test.js --reporter=verbose",
     "test:es": "vitest run tests/testesEssenciais.test.js --reporter=verbose",
+    "test:n-es": "vitest run tests/testesNaoEssenciais.test.js --reporter=verbose",
     "test:watch": "vitest",
     "db:expire": "tsx src/scripts/expire-replays.ts",
     "db:seed": "tsx src/scripts/seed.ts"
