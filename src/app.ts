@@ -20,6 +20,7 @@ import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod
 import openapiPlugin from './plugins/openapi.js'
 
 export const app = Fastify({ logger: true, });
+export default app;
 
 app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)
