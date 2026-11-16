@@ -1,3 +1,4 @@
+
 import fp from 'fastify-plugin'
 import type { Pool } from 'pg'
 import type { FastifyInstance } from 'fastify'
@@ -10,6 +11,8 @@ declare module 'fastify' {
 }
 
 export default fp(async (fastify: FastifyInstance) => {
+  fastify.log.info('[DB] Iniciando plugin')
+
   const connectionString =
     process.env.REPLAY_DATABASE_URL ?? process.env.DATABASE_URL
 
@@ -17,21 +20,33 @@ export default fp(async (fastify: FastifyInstance) => {
     throw new Error('DATABASE_URL não definida')
   }
 
+  fastify.log.info('[DB] Variável de conexão encontrada')
+  fastify.log.info('[DB] Criando pool PostgreSQL')
+
   const pool = createPostgresPool(
     connectionString,
     Number(process.env.DB_POOL_MAX ?? 1),
   )
 
   pool.on('error', (err) => {
-    fastify.log.error(err, 'Erro no pool do PostgreSQL')
+    fastify.log.error(err, '[DB] Erro no pool PostgreSQL')
   })
 
-  await pool.query('SELECT 1')
+  try {
+    fastify.log.info('[DB] Executando SELECT 1')
+    await pool.query('SELECT 1')
+    fastify.log.info('[DB] SELECT 1 concluído')
 
-  fastify.log.info('PostgreSQL conectado')
-  fastify.decorate('pg', pool)
+    fastify.decorate('pg', pool)
 
-  fastify.addHook('onClose', async (instance) => {
-    await instance.pg.end()
-  })
+    fastify.addHook('onClose', async (instance) => {
+      await instance.pg.end()
+    })
+
+    fastify.log.info('[DB] Plugin concluído')
+  } catch (error) {
+    fastify.log.error(error, '[DB] Falha na conexão PostgreSQL')
+    await pool.end()
+    throw error
+  }
 })

@@ -57,13 +57,17 @@ await app.register(cors, {
   credentials: true,
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
+console.log('[BOOT] Antes do dbPlugin');
 await app.register(dbPlugin);
+console.log('[BOOT] Depois do dbPlugin');
 
 await app.register(openapiPlugin);
 
 await app.register(replayRetentionPlugin);
 
+console.log('[BOOT] Antes do betterAuthPlugin');
 await app.register(betterAuthPlugin);
+console.log('[BOOT] Depois do betterAuthPlugin');
 
 await app.register(authController);
 
