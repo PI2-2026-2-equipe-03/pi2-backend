@@ -8,7 +8,7 @@ import { hashPassword, verifyPassword } from './password.js'
 if (!process.env.AUTH_DATABASE_URL) throw new Error('AUTH_DATABASE_URL não configurada')
 export const authPool = createPostgresPool(
   process.env.AUTH_DATABASE_URL,
-  Number(process.env.AUTH_DB_POOL_MAX ?? 1),
+  Number(process.env.AUTH_DB_POOL_MAX ?? 2),
 )
 // Locks não ocupam conexões usadas pelo handler Better Auth.
 export const authLockPool = createPostgresPool(

@@ -1,3 +1,4 @@
+
 import { readFileSync } from 'node:fs'
 import { Pool, type PoolConfig } from 'pg'
 
@@ -20,21 +21,27 @@ export function createPostgresPool(
 ): Pool {
   const url = new URL(connectionString)
 
-  // O SSL será configurado explicitamente abaixo.
   url.searchParams.delete('sslmode')
   url.searchParams.delete('sslrootcert')
   url.searchParams.delete('sslcert')
   url.searchParams.delete('sslkey')
+
+  const isLocal =
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.hostname === '::1'
 
   const config: PoolConfig = {
     connectionString: url.toString(),
     max,
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 10000,
-    ssl: {
-      ca: getSupabaseCA(),
-      rejectUnauthorized: true,
-    },
+    ssl: isLocal
+      ? false
+      : {
+          ca: getSupabaseCA(),
+          rejectUnauthorized: true,
+        },
   }
 
   return new Pool(config)

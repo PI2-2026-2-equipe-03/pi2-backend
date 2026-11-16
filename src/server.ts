@@ -1,14 +1,16 @@
-import { app } from './app.js'
+import Fastify from 'fastify'
+import { app } from './application.js'
 
 const port = Number(process.env.PORT ?? 3000)
 const host = process.env.HOST ?? '0.0.0.0'
 
-try {
-  await app.listen({
-    port,
-    host,
+export default app
+
+app.listen({ port, host })
+  .then((address) => {
+    app.log.info(`Servidor iniciado em ${address}`)
   })
-} catch (error) {
-  app.log.error(error)
-  process.exit(1)
-}
+  .catch((error) => {
+    app.log.error(error)
+    process.exit(1)
+  })

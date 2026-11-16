@@ -20,7 +20,6 @@ import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod
 import openapiPlugin from './plugins/openapi.js'
 
 export const app = Fastify({ logger: true, });
-export default app;
 
 app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)
@@ -59,17 +58,24 @@ await app.register(cors, {
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
 await app.register(dbPlugin);
-await app.register(openapiPlugin)
+
+await app.register(openapiPlugin);
+
 await app.register(replayRetentionPlugin);
+
 await app.register(betterAuthPlugin);
 
 await app.register(authController);
-await app.register(replaysController);
-await app.register(arenasController);
-await app.register(quadrasController);
-await app.register(managementController);
-await app.register(passwordRecoveryController);
 
+await app.register(replaysController);
+
+await app.register(arenasController);
+
+await app.register(quadrasController);
+
+await app.register(managementController);
+
+await app.register(passwordRecoveryController);
 const healthHandler = async () => {
   return {
     status: "ok",

@@ -63,9 +63,11 @@ beforeAll(async () => {
     process.env.AUTH_DATABASE_URL = process.env.REPLAY_DATABASE_URL = process.env.DATABASE_URL = databaseUrl.toString()
     process.env.BETTER_AUTH_URL = 'http://localhost:3000'
     process.env.BETTER_AUTH_SECRET = randomUUID() + randomUUID()
+
     const auth = await import('../lib/auth.js')
+
     closeAuth = async () => { await auth.authPool.end(); await auth.authLockPool.end() }
-    app = (await import('../app.js')).app
+    app = (await import('../application.js')).app
     await app.ready()
     manager = await account('gestor', '85911112222')
     user = await account('atleta', '85911113333')
