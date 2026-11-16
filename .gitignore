@@ -163,3 +163,4 @@ src/db/migrations/previews/
 
 # Backups temporários de editores
 *.save
+supabase-ca.crt

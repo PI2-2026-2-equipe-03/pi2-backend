@@ -1,4 +1,5 @@
-
+import { timingSafeEqual } from "node:crypto";
+import { expireReplays, deleteStoredMedia } from "./services/replay-retention.js";
 import Fastify from "fastify";
 import replayRetentionPlugin from "./plugins/replay-retention.js";
 import { passwordRecoveryController } from "./controllers/password-recovery.controller.js";
@@ -68,9 +69,60 @@ await app.register(quadrasController);
 await app.register(managementController);
 await app.register(passwordRecoveryController);
 
-app.get("/health", { schema: { hide: true } }, async () => {
-  return { status: "ok" };
-});
+const healthHandler = async () => {
+  return {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  };
+};
+
+app.get("/health", { schema: { hide: true } }, healthHandler);
+
+app.get("/api/health", { schema: { hide: true } }, healthHandler);
+app.get(
+  "/api/cron/expire-replays",
+  { schema: { hide: true } },
+  async (request, reply) => {
+    const secret = process.env.CRON_SECRET;
+
+    if (!secret) {
+      return reply.code(503).send({
+        status: "error",
+        message: "CRON_SECRET não configurado",
+      });
+    }
+
+    const authorization = request.headers.authorization ?? "";
+    const expected = Buffer.from(secret);
+    const received = Buffer.from(
+      authorization.startsWith("Bearer ")
+        ? authorization.slice(7)
+        : "",
+    );
+
+    if (
+      received.length !== expected.length ||
+      !timingSafeEqual(received, expected)
+    ) {
+      return reply.code(401).send({ status: "unauthorized" });
+    }
+
+    try {
+      const queued = await expireReplays(app.pg);
+      const deleted = await deleteStoredMedia(app.pg);
+
+      return {
+        status: "ok",
+        queued,
+        ...deleted,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      request.log.error(error, "Falha na execução da retenção");
+      return reply.code(500).send({ status: "error" });
+    }
+  },
+);
 
 app.get(
   "/teste-protegido",

@@ -1,14 +1,20 @@
 import { betterAuth } from 'better-auth'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { bearer } from 'better-auth/plugins'
-import { Pool } from 'pg'
+import { createPostgresPool } from './postgres.js'
 import { strongPassword } from '../http/errors.js'
 import { hashPassword, verifyPassword } from './password.js'
 
 if (!process.env.AUTH_DATABASE_URL) throw new Error('AUTH_DATABASE_URL não configurada')
-export const authPool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL })
+export const authPool = createPostgresPool(
+  process.env.AUTH_DATABASE_URL,
+  Number(process.env.AUTH_DB_POOL_MAX ?? 1),
+)
 // Locks não ocupam conexões usadas pelo handler Better Auth.
-export const authLockPool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL, max: 4 })
+export const authLockPool = createPostgresPool(
+  process.env.AUTH_DATABASE_URL,
+  Number(process.env.AUTH_LOCK_POOL_MAX ?? 1),
+)
 
 // Origens por ambiente: acessar pelo IP da rede local (celular) exige declarar esse IP.
 const trustedOrigins = (process.env.TRUSTED_ORIGINS || 'http://localhost:5173')
