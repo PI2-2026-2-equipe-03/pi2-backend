@@ -40,5 +40,8 @@
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "content-disposition": "2.0.1"
+  }
 }
