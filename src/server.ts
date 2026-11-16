@@ -4,6 +4,8 @@ import { app } from './application.js'
 const port = Number(process.env.PORT ?? 3000)
 const host = process.env.HOST ?? '0.0.0.0'
 
+console.log('[BOOT] VERCEL:', process.env.VERCEL);
+
 export default app
 
 if (!process.env.VERCEL) {
