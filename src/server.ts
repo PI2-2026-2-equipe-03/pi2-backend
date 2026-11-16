@@ -6,11 +6,13 @@ const host = process.env.HOST ?? '0.0.0.0'
 
 export default app
 
-app.listen({ port, host })
-  .then((address) => {
-    app.log.info(`Servidor iniciado em ${address}`)
-  })
-  .catch((error) => {
-    app.log.error(error)
-    process.exit(1)
-  })
+if (!process.env.VERCEL) {
+  app.listen({ port, host })
+    .then((address) => {
+      app.log.info(`Servidor iniciado em ${address}`)
+    })
+    .catch((error) => {
+      app.log.error(error)
+      process.exit(1)
+    })
+}
