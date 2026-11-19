@@ -26,10 +26,7 @@ export function createPostgresPool(
   url.searchParams.delete('sslcert')
   url.searchParams.delete('sslkey')
 
-  const isLocal =
-    url.hostname === 'localhost' ||
-    url.hostname === '127.0.0.1' ||
-    url.hostname === '::1'
+  const isLocal = ['localhost', '127.0.0.1', '::1', 'db'].includes(url.hostname)
 
   const config: PoolConfig = {
     connectionString: url.toString(),
