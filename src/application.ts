@@ -30,7 +30,7 @@ const environment = process.env.NODE_ENV ?? "development";
 
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
   .split(",")
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
   .filter(Boolean);
 
 if (allowedOrigins.length === 0) {
