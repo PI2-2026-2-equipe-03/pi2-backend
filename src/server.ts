@@ -1,3 +1,5 @@
+console.log('[BOOT] Carregando server.ts')
+
 import Fastify from 'fastify'
 import { app } from './application.js'
 

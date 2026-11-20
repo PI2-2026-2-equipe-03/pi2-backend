@@ -1,3 +1,5 @@
+console.log('[BOOT] Carregando application.ts')
+
 import { timingSafeEqual } from "node:crypto";
 import { expireReplays, deleteStoredMedia } from "./services/replay-retention.js";
 import Fastify from "fastify";
