@@ -1,4 +1,4 @@
-
+import Fastify from 'fastify'
 import { app } from './application.js'
 
 const port = Number(process.env.PORT ?? 3000)
