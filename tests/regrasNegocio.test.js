@@ -42,9 +42,9 @@ const SEED = {
 };
 
 const CREDENCIAIS = {
-  gestor: { email: 'teste@conta.com', password: 'Teste@12345' },
-  admin: { email: 'teste@conta.com', password: 'Teste@12345' },
-  atleta: { email: 'teste@conta.com', password: 'Teste@12345' },
+  gestor: { email: 'cli@tagravado.test', password: 'Cli@Tagravado2026' },
+  admin: { email: 'adm@tagravado.test', password: 'Adm@Tagravado2026' },
+  atleta: { email: 'usr@tagravado.test', password: 'Usr@Tagravado2026' },
 };
 
 // const CREDENCIAIS = {

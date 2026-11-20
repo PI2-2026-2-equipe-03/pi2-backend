@@ -30,16 +30,10 @@ const SEED = {
 };
 
 const CREDENCIAIS = {
-  gestor: { email: 'teste@conta.com', password: 'Teste@12345' },
-  admin: { email: 'teste@conta.com', password: 'Teste@12345' },
-  atleta: { email: 'teste@conta.com', password: 'Teste@12345' },
+  gestor: { email: 'cli@tagravado.test', password: 'Cli@Tagravado2026' },
+  admin: { email: 'adm@tagravado.test', password: 'Adm@Tagravado2026' },
+  atleta: { email: 'usr@tagravado.test', password: 'Usr@Tagravado2026' },
 };
-
-// const CREDENCIAIS = {
-//   gestor: { email: 'carlos.mendes@example.com', password: 'SenhaValida123' },
-//   admin: { email: 'admin01@example.com', password: 'SenhaValida123' },
-//   atleta: { email: 'atleta.teste@example.com', password: 'SenhaValida123' },
-// };
 
 const cookies = { gestor: null, admin: null, atleta: null };
 const criados = { quadras: [], cameras: [], sponsors: [] };
