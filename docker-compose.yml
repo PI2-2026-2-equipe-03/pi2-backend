@@ -50,6 +50,8 @@ services:
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:5173}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-env}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      # o Postgres do compose não usa TLS; produção (Supabase) mantém o padrão com certificado.
+      DB_SSL: ${DB_SSL:-false}
     volumes:
       # Bind mount + volume anônimo em node_modules: hot reload via `tsx watch` sem sobrescrever deps do container.
       - .:/app
