@@ -15,6 +15,7 @@ import { authController } from "./controllers/auth.controller.js";
 import { replaysController } from "./controllers/replays.controller.js";
 import { arenasController } from "./controllers/arenas.controller.js";
 import { quadrasController } from "./controllers/quadras.controller.js";
+import { agentController } from "./controllers/agent.controller.js";
 
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
 import openapiPlugin from './plugins/openapi.js'
@@ -80,6 +81,8 @@ await app.register(quadrasController);
 await app.register(managementController);
 
 await app.register(passwordRecoveryController);
+
+await app.register(agentController);
 const healthHandler = async () => {
   return {
     status: "ok",

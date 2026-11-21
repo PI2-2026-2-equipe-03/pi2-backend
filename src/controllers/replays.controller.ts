@@ -9,6 +9,8 @@ import {
     data, errorSchema, messageSchema, replayCreateBodySchema, replayDeleteBodySchema, replayDetailSchema,
     replayDownloadSchema, replayFiltersSchema, replayListItemSchema, replaySchema,
 } from '../schemas/api.js'
+import { createReplay, REPLAY_FIELDS as fields } from '../services/replay-creation.js'
+import { toMediaUrl } from '../services/storage.js'
 
 const createSchema = z.object({ courtId: uuid }).strict()
 const deleteSchema = z.object({ reason: z.string().trim().min(3, 'Informe o motivo da exclusão (3 a 500 caracteres)').max(500) }).strict()
@@ -18,10 +20,6 @@ const filtersSchema = z.object({
     date: z.iso.date({ error: 'Informe uma data válida no formato AAAA-MM-DD' }).optional(),
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Informe um horário válido (HH:MM)').optional(),
 }).strict()
-const fields = `r.id_replay AS id, r.id_quadra AS "courtId", r.arquivo_url AS "downloadUrl",
-  r.data_geracao::text AS "recordingDate", r.hora_geracao AS "recordingTime",
-  r.criado_em AS "createdAt", r.expira_em AS "expiresAt", r.status,
-  r.duracao_segundos AS duration, r.patrocinadores AS sponsors`
 
 export async function replaysController(app: FastifyInstance) {
     const r = app.withTypeProvider<ZodTypeProvider>()
@@ -39,32 +37,19 @@ export async function replaysController(app: FastifyInstance) {
         },
     }, async (request, reply) => {
         const { courtId } = parse(createSchema, request.body)
-        const client = await app.pg.connect()
-        try {
-            await client.query('BEGIN')
-            // Serializa acionamentos da mesma quadra, inclusive requisições concorrentes.
-            const court = await client.query(`SELECT q.disponivel, ua.id_auth AS owner
-        FROM quadra q JOIN arena a ON a.id_arena=q.id_arena
-        LEFT JOIN usuario_auth ua ON ua.id_usuario=a.id_gestor
-        WHERE q.id_quadra=$1 FOR UPDATE OF q`, [courtId])
-            if (!court.rowCount) throw new HttpError(404, 'Quadra não encontrada')
-            if (court.rows[0].owner !== request.authUser!.id) throw new HttpError(403, 'Você não tem permissão para gerenciar esta quadra')
-            if (!court.rows[0].disponivel) throw new HttpError(422, 'Quadra indisponível para gerar replay')
-            const recent = await client.query(`SELECT 1 FROM replay WHERE id_quadra=$1 AND criado_em > clock_timestamp() - INTERVAL '30 seconds' LIMIT 1`, [courtId])
-            if (recent.rowCount) throw new HttpError(409, 'Aguarde 30 segundos entre solicitações de replay')
-            const sponsors = await client.query(`SELECT p.id_patrocinador AS id, p.nome AS name, p.foto_url AS "imageUrl"
-        FROM patrocinador p JOIN quadra_patrocinador qp ON qp.id_patrocinador=p.id_patrocinador
-        WHERE qp.id_quadra=$1 ORDER BY p.id_patrocinador`, [courtId])
-            const result = await client.query(`WITH recorded AS (SELECT clock_timestamp() AS stamp) INSERT INTO replay AS r
-        (id_quadra, data_geracao, hora_geracao, status, duracao_segundos, patrocinadores, criado_em, expira_em)
-        SELECT $1, stamp::date, stamp::time, 'pendente', 30, $2::jsonb, stamp, stamp+INTERVAL '168 hours' FROM recorded RETURNING ${fields}`,
-                [courtId, JSON.stringify(sponsors.rows)])
-            await client.query('COMMIT')
-            return reply.code(201).send({ data: result.rows[0] })
-        } catch (error) {
-            await client.query('ROLLBACK')
-            throw error
-        } finally { client.release() }
+        const result = await createReplay(app.pg, {
+            courtId,
+            canAccess: court => court.ownerAuthId === request.authUser!.id,
+        })
+        if (!result.ok) {
+            switch (result.reason) {
+                case 'court_not_found': throw new HttpError(404, 'Quadra não encontrada')
+                case 'forbidden': throw new HttpError(403, 'Você não tem permissão para gerenciar esta quadra')
+                case 'court_unavailable': throw new HttpError(422, 'Quadra indisponível para gerar replay')
+                case 'min_interval': throw new HttpError(409, 'Aguarde 30 segundos entre solicitações de replay')
+            }
+        }
+        return reply.code(201).send({ data: result.replay })
     })
 
     r.get('/replays', {
@@ -86,7 +71,8 @@ export async function replaysController(app: FastifyInstance) {
         AND ($4::time IS NULL OR date_trunc('minute', r.hora_geracao::interval)=date_trunc('minute', $4::time::interval))
       ORDER BY r.data_geracao DESC, r.hora_geracao DESC, r.id_replay`,
             [filters.courtId ?? null, filters.city || null, filters.date ?? null, filters.time ?? null])
-        return { data: result.rows }
+        const rows = await Promise.all(result.rows.map(async row => ({ ...row, downloadUrl: await toMediaUrl(row.downloadUrl) })))
+        return { data: rows }
     })
 
     r.get('/replays/:id', {
@@ -141,7 +127,7 @@ export async function replaysController(app: FastifyInstance) {
                 city: replay.city,
                 recordedAt: new Date(replay.recordedAt).toISOString(),
                 duration: replay.duration,
-                videoUrl: replay.videoUrl,
+                videoUrl: await toMediaUrl(replay.videoUrl),
                 expiresAt: new Date(replay.expiresAt).toISOString(),
             },
         }
@@ -160,8 +146,10 @@ export async function replaysController(app: FastifyInstance) {
         if (!result.rowCount) throw new HttpError(404, 'Replay não encontrado ou expirado')
         const replay = result.rows[0]
         if (replay.status !== 'disponivel' || !replay.downloadUrl) throw new HttpError(422, 'Replay ainda não está disponível para download')
+        const fileName = `replay-${id}.mp4`
+        const downloadUrl = await toMediaUrl(replay.downloadUrl, fileName)
         await app.pg.query('INSERT INTO replay_download_event(id_replay,id_auth) VALUES($1,$2)', [id, request.authUser!.id])
-        return { data: { id: replay.id, downloadUrl: replay.downloadUrl, fileName: `replay-${id}.mp4`, format: 'MP4' as const } }
+        return { data: { id: replay.id, downloadUrl, fileName, format: 'MP4' as const } }
     })
 
     r.delete('/replays/:id', {

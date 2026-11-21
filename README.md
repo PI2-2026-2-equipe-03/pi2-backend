@@ -31,10 +31,10 @@ Em volume/banco existente, aplique as novas migrações uma única vez. Consulte
 npm test                  # Testes unitários; exclui cópias compiladas em dist/
 npm run build             # TypeScript
 TEST_DATABASE_URL=postgresql://usuario@127.0.0.1:5433/postgres npm run test:integration
-npm run db:expire         # Retenção + entrega de exclusões ao adaptador de storage
+npm run db:expire         # Retenção + exclusão das mídias no R2
 ```
 
-A integração requer PostgreSQL local e permissão de criação de banco. Cria e remove seu próprio banco descartável, sem mocks de banco/autenticação. O envio de e-mail e o protocolo de exclusão usam receptores HTTP locais durante os testes.
+A integração requer PostgreSQL local e permissão de criação de banco. Cria e remove seu próprio banco descartável, sem mocks de banco/autenticação. O envio de e-mail usa um receptor HTTP local; as operações do R2 são simuladas (`vi.spyOn`) durante os testes.
 
 Importe a [coleção Postman](docs/postman/b302.postman_collection.json) para testar as oito rotas do núcleo. A [documentação de evidências](docs/regras-de-negocio-implementadas.md#validação-reproduzível-e-evidências) explica as variáveis e a execução via Newman.
 
@@ -42,4 +42,32 @@ Importe a [coleção Postman](docs/postman/b302.postman_collection.json) para te
 
 A autenticação nativa Better Auth em `/api/auth/*` permanece disponível, além de `/auth/register` e `/auth/login`. Novos cadastros exigem telefone e senha forte. Replays novos ficam pendentes até um serviço real de captura/processamento fornecer a mídia. Marca d'água e buffer de câmera dependem desse serviço.
 
-Recuperação exige `EMAIL_DELIVERY_URL` (HTTPS; token opcional `EMAIL_DELIVERY_TOKEN`). A remoção física de arquivos exige `MEDIA_DELETE_URL` (token opcional `MEDIA_DELETE_TOKEN`). Sem adaptador de storage, os jobs de remoção ficam preservados no banco e os vídeos excluídos/expirados não são acessíveis pela API. Detalhes e payloads estão no documento B3-02.
+Recuperação exige `EMAIL_DELIVERY_URL` (HTTPS; token opcional `EMAIL_DELIVERY_TOKEN`). Detalhes e payloads estão no documento B3-02.
+
+### Armazenamento de vídeos (Cloudflare R2)
+
+Os vídeos ficam num bucket R2 **privado**. O banco guarda só a chave do objeto (`replays/<arena>/<quadra>/<AAAA>/<MM>/<DD>/<replay>.mp4`), e `GET /replays`, `GET /replays/:id` e `/download` devolvem URLs temporárias.
+
+| Variável | Uso |
+|---|---|
+| `S3_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
+| `S3_REGION` | `auto` (padrão) |
+| `S3_BUCKET` | Nome do bucket |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Token de API do R2 com leitura e escrita no bucket |
+| `UPLOAD_URL_TTL_SECONDS` | Validade das URLs de upload do agente (padrão 600) |
+| `DOWNLOAD_URL_TTL_SECONDS` | Validade dos links de vídeo do app (padrão 3600) |
+
+No Docker Compose, essas variáveis são repassadas do `.env` ao serviço `backend`. Sem elas, as rotas de upload do agente respondem `503` e a fila de exclusão (`media_deletion_job`) fica pendente até o storage ser configurado.
+
+O bucket precisa de uma regra de CORS só se algum navegador fizer upload direto; o agente (Node) não precisa.
+
+### Agente da arena
+
+Cada arena roda o `agent-node`, que grava as câmeras e envia os clipes pelas rotas `/api/agent/*` (contrato em [contrato-api.md](docs/referencias/contrato-api.md#agente-da-arena)). Para gerar o token de uma arena (exibido uma única vez; só o hash SHA-256 fica no banco):
+
+```bash
+npm run agent:token -- <id_arena>
+# com Docker: docker compose exec backend npm run agent:token -- <id_arena>
+```
+
+Para revogar, marque `agente.ativo = false`. Em banco existente, aplique `src/db/init/013_agente.sql` uma única vez.
