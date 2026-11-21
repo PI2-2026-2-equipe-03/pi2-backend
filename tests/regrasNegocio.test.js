@@ -9,7 +9,7 @@ const expect = globalThis.expect || vitestRunner?.expect;
 const beforeAll = globalThis.beforeAll || vitestRunner?.beforeAll;
 const afterAll = globalThis.afterAll || vitestRunner?.afterAll;
 
-const API_URL = process.env.API_URL || 'http://localhost:3000/api';
+const API_URL = process.env.API_URL || 'http://localhost:3000';
 const ORIGIN = process.env.ORIGIN || 'http://localhost:5173';
 const STATUS_BLOQUEIO = Number(process.env.STATUS_BLOQUEIO || 429);
 const LOGIN_DELAY_MS = Number(process.env.LOGIN_ATTEMPT_DELAY_MS || 0);
@@ -46,12 +46,6 @@ const CREDENCIAIS = {
   admin: { email: 'adm@tagravado.test', password: 'Adm@Tagravado2026' },
   atleta: { email: 'usr@tagravado.test', password: 'Usr@Tagravado2026' },
 };
-
-// const CREDENCIAIS = {
-//   gestor: { email: 'carlos.mendes@example.com', password: 'SenhaValida123' },
-//   admin: { email: 'admin01@example.com', password: 'SenhaValida123' },
-//   atleta: { email: 'atleta.teste@example.com', password: 'SenhaValida123' },
-// };
 
 const cookies = { gestor: null, admin: null, atleta: null };
 const criados = { replays: [], sponsors: [] };
