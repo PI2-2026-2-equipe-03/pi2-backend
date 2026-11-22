@@ -61,6 +61,7 @@ networks:
   pi2-net:
     name: pi2-net
     driver: bridge
+    external: true
 
 volumes:
   tagravado_db_data:
