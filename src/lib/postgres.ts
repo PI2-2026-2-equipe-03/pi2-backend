@@ -8,6 +8,7 @@ function getSupabaseCA(): string {
     return certificate
       .replace(/\\n/g, '\n')
       .replace(/\r\n/g, '\n')
+      .trim()
   }
 
   return readFileSync(
