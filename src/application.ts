@@ -31,119 +31,99 @@ registerErrorHandler(app);
 const environment = process.env.NODE_ENV ?? "development";
 
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
-  .split(",")
-  .map((origin) => origin.trim().replace(/\/+$/, ""))
-  .filter(Boolean);
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
 
 if (allowedOrigins.length === 0) {
-  if (environment === "development" || environment === "test") {
-    allowedOrigins.push("http://localhost:5173");
-  } else {
-    throw new Error("CORS_ORIGINS é obrigatório em staging/produção");
-  }
+    if (environment === "development" || environment === "test") {
+        allowedOrigins.push("http://localhost:5173");
+    } else {
+        throw new Error("CORS_ORIGINS é obrigatório em staging/produção");
+    }
 }
 
 for (const origin of allowedOrigins) {
-  const url = new URL(origin);
+    const url = new URL(origin);
 
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    url.origin !== origin
-  ) {
-    throw new Error(`Origem inválida em CORS_ORIGINS: ${origin}`);
-  }
+    if (
+        !["http:", "https:"].includes(url.protocol) ||
+        url.origin !== origin
+    ) {
+        throw new Error(`Origem inválida em CORS_ORIGINS: ${origin}`);
+    }
 }
 
 await app.register(cors, {
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
-console.log('[BOOT] Antes do dbPlugin');
+
 await app.register(dbPlugin);
-console.log('[BOOT] Depois do dbPlugin');
-
 await app.register(openapiPlugin);
-
 await app.register(replayRetentionPlugin);
-
-console.log('[BOOT] Antes do betterAuthPlugin');
 await app.register(betterAuthPlugin);
-console.log('[BOOT] Depois do betterAuthPlugin');
 
-await app.register(authController);
+await app.register(async api => {
+    await api.register(authController);
+    await api.register(replaysController);
+    await api.register(arenasController);
+    await api.register(quadrasController);
+    await api.register(managementController);
+    await api.register(passwordRecoveryController);
+}, { prefix: '/api' })
 
-await app.register(replaysController);
-
-await app.register(arenasController);
-
-await app.register(quadrasController);
-
-await app.register(managementController);
-
-await app.register(passwordRecoveryController);
 const healthHandler = async () => {
-  return {
-    status: "ok",
-    timestamp: new Date().toISOString(),
-  };
+    return {
+        status: "ok",
+        timestamp: new Date().toISOString(),
+    };
 };
 
-app.get("/health", { schema: { hide: true } }, healthHandler);
-
 app.get("/api/health", { schema: { hide: true } }, healthHandler);
-app.get(
-  "/api/cron/expire-replays",
-  { schema: { hide: true } },
-  async (request, reply) => {
-    const secret = process.env.CRON_SECRET;
-
-    if (!secret) {
-      return reply.code(503).send({
-        status: "error",
-        message: "CRON_SECRET não configurado",
-      });
-    }
-
-    const authorization = request.headers.authorization ?? "";
-    const expected = Buffer.from(secret);
-    const received = Buffer.from(
-      authorization.startsWith("Bearer ")
-        ? authorization.slice(7)
-        : "",
-    );
-
-    if (
-      received.length !== expected.length ||
-      !timingSafeEqual(received, expected)
-    ) {
-      return reply.code(401).send({ status: "unauthorized" });
-    }
-
-    try {
-      const queued = await expireReplays(app.pg);
-      const deleted = await deleteStoredMedia(app.pg);
-
-      return {
-        status: "ok",
-        queued,
-        ...deleted,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      request.log.error(error, "Falha na execução da retenção");
-      return reply.code(500).send({ status: "error" });
-    }
-  },
-);
 
 app.get(
-  "/teste-protegido",
-  { preHandler: requireAuth, schema: { hide: true } },
-  async () => {
-    return {
-      message: "Acesso autorizado!",
-    };
-  }
-);
+    "/api/cron/expire-replays",
+    { schema: { hide: true } },
+    async (request, reply) => {
+        const secret = process.env.CRON_SECRET;
 
+        if (!secret) {
+            return reply.code(503).send({
+                status: "error",
+                message: "CRON_SECRET não configurado",
+            });
+        }
+
+        const authorization = request.headers.authorization ?? "";
+        const expected = Buffer.from(secret);
+        const received = Buffer.from(
+            authorization.startsWith("Bearer ")
+                ? authorization.slice(7)
+                : "",
+        );
+
+        if (
+            received.length !== expected.length ||
+            !timingSafeEqual(received, expected)
+        ) {
+            return reply.code(401).send({ status: "unauthorized" });
+        }
+
+        try {
+            const queued = await expireReplays(app.pg);
+            const deleted = await deleteStoredMedia(app.pg);
+
+            return {
+                status: "ok",
+                queued,
+                ...deleted,
+                timestamp: new Date().toISOString(),
+            };
+        } catch (error) {
+            request.log.error(error, "Falha na execução da retenção");
+            return reply.code(500).send({ status: "error" });
+        }
+    },
+);
