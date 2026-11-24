@@ -26,7 +26,7 @@ const crossSiteCookies = process.env.NODE_ENV === 'production'
 
 export const auth = betterAuth({
   database: authPool,
-  aadvanced: {
+  advanced: {
     database: { generateId: 'uuid' },
     ...(crossSiteCookies
       ? { defaultCookieAttributes: { sameSite: 'none' as const, secure: true, partitioned: true } }
