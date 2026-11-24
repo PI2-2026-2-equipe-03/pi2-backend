@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-const API_URL = process.env.API_URL || 'http://localhost:3000';
+const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 const ORIGIN = process.env.ORIGIN || 'http://localhost:5173';
 
 const ROTAS = {
   signIn: '/auth/login',
-  signInAuth: '/api/auth/sign-in/email',
+  signInAuth: '/auth/sign-in/email',
   signUp: '/auth/register',
-  signUpAuth: '/api/auth/sign-up/email',
+  signUpAuth: '/auth/sign-up/email',
   me: '/me',
   forgotPassword: '/auth/forgot-password',
   resetPassword: '/auth/reset-password',
@@ -251,7 +251,6 @@ describe('RN-03: Bloqueio Temporário por Falhas Consecutivas de Login (RF-02)',
         break;
       }
     }
-    // Se o backend suportar rate limiting estrito por IP/email, valida 429 ou 401
   });
 });
 
