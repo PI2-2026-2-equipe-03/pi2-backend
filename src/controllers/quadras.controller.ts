@@ -7,7 +7,7 @@ import { data, errorSchema, quadraSchema, quadrasQuerySchema } from "../schemas/
 
 export async function quadrasController(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>().get(
-    "/quadras",
+    "/courts",
     {
       ...docOnly,
       schema: {
