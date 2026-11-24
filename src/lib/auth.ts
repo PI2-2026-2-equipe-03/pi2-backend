@@ -22,37 +22,52 @@ const trustedOrigins = (process.env.TRUSTED_ORIGINS || 'http://localhost:5173')
   .map(origin => origin.trim())
   .filter(Boolean)
 
+const crossSiteCookies = process.env.NODE_ENV === 'production'
+
 export const auth = betterAuth({
   database: authPool,
-  advanced: { database: { generateId: 'uuid' } },
+  aadvanced: {
+    database: { generateId: 'uuid' },
+    ...(crossSiteCookies
+      ? { defaultCookieAttributes: { sameSite: 'none' as const, secure: true, partitioned: true } }
+      : {}),
+  },
   trustedOrigins,
   plugins: [bearer()],
   user: { additionalFields: { phone: { type: 'string', required: true } } },
-  emailAndPassword: { 
+  emailAndPassword: {
     enabled: true, minPasswordLength: 8, maxPasswordLength: 128,
     password: { hash: hashPassword, verify: verifyPassword },
-   },
-  session: { expiresIn: 1800, updateAge: 0, cookieCache: { enabled: false } },
-  rateLimit: { enabled: true, storage: 'database', window: 60, max: 100, customRules: {
-    '/sign-in/email': { window: 60, max: 100 },
-    '/sign-up/email': { window: 60, max: 20 },
-  } },
-  databaseHooks: {
-    user: { create: { before: async user => {
-      const email = user.email.trim().toLowerCase()
-      const existente = await authPool.query('SELECT 1 FROM usuario WHERE lower(email)=$1', [email])
-      if (existente.rowCount) throw new APIError('CONFLICT', { message: 'E-mail já cadastrado no sistema' })
-      return { data: { ...user, email } }
-    } } },
   },
-  hooks: { before: createAuthMiddleware(async ctx => {
-    const password = ctx.path === '/sign-up/email' ? ctx.body?.password : ctx.body?.newPassword
-    if (password !== undefined && ['/sign-up/email', '/change-password', '/reset-password'].includes(ctx.path)) {
-      const result = strongPassword.safeParse(password)
-      if (!result.success) throw new APIError('UNPROCESSABLE_ENTITY', { message: result.error.issues[0]!.message })
+  session: { expiresIn: 1800, updateAge: 0, cookieCache: { enabled: false } },
+  rateLimit: {
+    enabled: true, storage: 'database', window: 60, max: 100, customRules: {
+      '/sign-in/email': { window: 60, max: 100 },
+      '/sign-up/email': { window: 60, max: 20 },
     }
-    if (ctx.path === '/change-password' && ctx.body?.currentPassword === ctx.body?.newPassword) {
-      throw new APIError('UNPROCESSABLE_ENTITY', { message: 'A nova senha deve ser diferente da anterior' })
-    }
-  }) },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async user => {
+          const email = user.email.trim().toLowerCase()
+          const existente = await authPool.query('SELECT 1 FROM usuario WHERE lower(email)=$1', [email])
+          if (existente.rowCount) throw new APIError('CONFLICT', { message: 'E-mail já cadastrado no sistema' })
+          return { data: { ...user, email } }
+        }
+      }
+    },
+  },
+  hooks: {
+    before: createAuthMiddleware(async ctx => {
+      const password = ctx.path === '/sign-up/email' ? ctx.body?.password : ctx.body?.newPassword
+      if (password !== undefined && ['/sign-up/email', '/change-password', '/reset-password'].includes(ctx.path)) {
+        const result = strongPassword.safeParse(password)
+        if (!result.success) throw new APIError('UNPROCESSABLE_ENTITY', { message: result.error.issues[0]!.message })
+      }
+      if (ctx.path === '/change-password' && ctx.body?.currentPassword === ctx.body?.newPassword) {
+        throw new APIError('UNPROCESSABLE_ENTITY', { message: 'A nova senha deve ser diferente da anterior' })
+      }
+    })
+  },
 })
