@@ -22,9 +22,21 @@ const trustedOrigins = (process.env.TRUSTED_ORIGINS || 'http://localhost:5173')
   .map(origin => origin.trim())
   .filter(Boolean)
 
+// O SPA (vercel.app) e a API (onrender.com) são domínios registráveis distintos,
+// então toda chamada do front é cross-site e o SameSite=Lax padrão do Better Auth
+// faz o navegador descartar a cookie de sessão. None exige Secure, e Partitioned
+// cobre o CHIPS do Chrome. Em desenvolvimento o proxy do Vite deixa tudo
+// same-origin e Secure impediria a cookie em http://localhost.
+const crossSiteCookies = process.env.NODE_ENV === 'production'
+
 export const auth = betterAuth({
   database: authPool,
-  advanced: { database: { generateId: 'uuid' } },
+  advanced: {
+    database: { generateId: 'uuid' },
+    ...(crossSiteCookies
+      ? { defaultCookieAttributes: { sameSite: 'none' as const, secure: true, partitioned: true } }
+      : {}),
+  },
   trustedOrigins,
   plugins: [bearer()],
   user: { additionalFields: { phone: { type: 'string', required: true } } },
