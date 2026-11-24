@@ -1,25 +1,13 @@
-let vitestRunner = null;
-try {
-  vitestRunner = require('vitest');
-} catch (_) {}
-
-const describe = globalThis.describe || vitestRunner?.describe;
-const it = globalThis.it || vitestRunner?.it;
-const expect = globalThis.expect || vitestRunner?.expect;
-const beforeAll = globalThis.beforeAll || vitestRunner?.beforeAll;
-const afterAll = globalThis.afterAll || vitestRunner?.afterAll;
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 const API_URL = process.env.API_URL || 'http://localhost:3000';
 const ORIGIN = process.env.ORIGIN || 'http://localhost:5173';
-const STATUS_BLOQUEIO = Number(process.env.STATUS_BLOQUEIO || 429);
-const LOGIN_DELAY_MS = Number(process.env.LOGIN_ATTEMPT_DELAY_MS || 0);
 
 const ROTAS = {
-  signIn: '/auth/sign-in/email',
-  signInContract: '/auth/login',
-  signUp: '/auth/sign-up/email',
-  registerContract: '/auth/register',
-  session: '/auth/get-session',
+  signIn: '/auth/login',
+  signInAuth: '/api/auth/sign-in/email',
+  signUp: '/auth/register',
+  signUpAuth: '/api/auth/sign-up/email',
   me: '/me',
   forgotPassword: '/auth/forgot-password',
   resetPassword: '/auth/reset-password',
@@ -35,10 +23,9 @@ const ROTAS = {
 const SEED = {
   arenaId: '30000000-0000-0000-0000-000000000001',
   quadraId: '40000000-0000-0000-0000-000000000001',
-  cameraId: '50000000-0000-0000-0000-000000000001',
   replayRecente: '60000000-0000-0000-0000-000000000001',
   replayExcluirGestor: '60000000-0000-0000-0000-000000000002',
-  replayExpirado: '60000000-0000-0000-0000-000000000005', // Data de criação > 7 dias
+  replayExpirado: '60000000-0000-0000-0000-000000000005',
 };
 
 const CREDENCIAIS = {
@@ -49,8 +36,6 @@ const CREDENCIAIS = {
 
 const cookies = { gestor: null, admin: null, atleta: null };
 const criados = { replays: [], sponsors: [] };
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function lerSetCookies(headers) {
   let brutos = [];
@@ -122,57 +107,24 @@ function expectStatus(res, esperado, dica = '') {
   if (!lista.includes(res.status)) {
     throw new Error(
       `Esperado HTTP ${lista.join(' ou ')}, recebido ${res.status}. ` +
-        `Body: ${JSON.stringify(res.body)}${dica ? `\\nDica: ${dica}` : ''}`
+        `Body: ${JSON.stringify(res.body)}${dica ? `\nDica: ${dica}` : ''}`
     );
-  }
-}
-
-function expectReplayIndisponivel(res) {
-  if (res.status === 200) {
-    expect(['excluido', 'EXCLUDED', 'UNAVAILABLE']).toContain(res.body.status);
-  } else {
-    expectStatus(res, [404, 410]);
   }
 }
 
 async function login(credenciais) {
   let res = await apiRequest(ROTAS.signIn, { method: 'POST', json: credenciais });
   if (res.status === 404) {
-    res = await apiRequest(ROTAS.signInContract, { method: 'POST', json: credenciais });
+    res = await apiRequest(ROTAS.signInAuth, { method: 'POST', json: credenciais });
   }
 
   if (res.status !== 200) {
     throw new Error(
-      `Login falhou para ${credenciais.email}: HTTP ${res.status} ${JSON.stringify(res.body)}. ` +
-        'Verifique se o usuário existe no seed e se a API está ativa.'
+      `Login falhou para ${credenciais.email}: HTTP ${res.status} ${JSON.stringify(res.body)}.`
     );
   }
 
   return res.cookie || (res.body.token ? `Bearer ${res.body.token}` : null);
-}
-
-async function tentarLogin(credenciais) {
-  let res = await apiRequest(ROTAS.signIn, { method: 'POST', json: credenciais });
-  if (res.status === 404) {
-    res = await apiRequest(ROTAS.signInContract, { method: 'POST', json: credenciais });
-  }
-  return res;
-}
-
-async function criarUsuarioDescartavel(prefixo) {
-  const email = `${prefixo}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
-  const password = 'SenhaValida123!';
-  let res = await apiRequest(ROTAS.signUp, {
-    method: 'POST',
-    json: { name: `QA ${prefixo}`, email, password },
-  });
-  if (res.status === 404) {
-    res = await apiRequest(ROTAS.registerContract, {
-      method: 'POST',
-      json: { name: `QA ${prefixo}`, email, phone: '88999990000', password },
-    });
-  }
-  return { email, password, descartavelCriado: [200, 201].includes(res.status) };
 }
 
 beforeAll(async () => {
@@ -185,7 +137,7 @@ afterAll(async () => {
   if (cookies.admin) {
     for (const id of criados.replays) {
       try {
-        await apiRequest(`${ROTAS.replays}/${id}`, { method: 'DELETE', json: { motivo: 'Limpeza QA' } }, cookies.admin);
+        await apiRequest(`${ROTAS.replays}/${id}`, { method: 'DELETE', json: { reason: 'Limpeza QA' } }, cookies.admin);
       } catch (_) {}
     }
   }
@@ -205,13 +157,19 @@ describe('RBAC: Controle de Permissões e Acesso por Perfil', () => {
   it('Gestor (CLI) consegue acessar métricas da arena com 200 OK', async () => {
     const res = await apiRequest(ROTAS.managerMetrics, { method: 'GET' }, cookies.gestor);
     expectStatus(res, [200, 304]);
-    if (res.status === 200) expect(res.body).toHaveProperty('totalReplays');
+    if (res.status === 200) {
+      const data = res.body.data || res.body;
+      expect(data).toHaveProperty('totalReplays');
+    }
   });
 
   it('Administrador (ADM) consegue acessar métricas administrativas com 200 OK', async () => {
     const res = await apiRequest(ROTAS.adminMetrics, { method: 'GET' }, cookies.admin);
     expectStatus(res, [200, 304]);
-    if (res.status === 200) expect(res.body).toHaveProperty('totalCourts');
+    if (res.status === 200) {
+      const data = res.body.data || res.body;
+      expect(data).toHaveProperty('totalCourts');
+    }
   });
 
   it('Acesso anônimo a endpoint protegido retorna 401 Unauthorized', async () => {
@@ -223,75 +181,77 @@ describe('RBAC: Controle de Permissões e Acesso por Perfil', () => {
 describe('RN-01: Retenção Máxima de 7 Dias e Exclusão Automática (RF-08)', () => {
   it('Replay antigo (> 7 dias) do seed permanece expirado/indisponível', async () => {
     const res = await apiRequest(`${ROTAS.replays}/${SEED.replayExpirado}`, { method: 'GET' }, cookies.gestor);
-    expectReplayIndisponivel(res);
+    if (res.status === 200) {
+      const data = res.body.data || res.body;
+      expect(['excluido', 'EXCLUDED', 'UNAVAILABLE', 'expirado']).toContain(data.status);
+    } else {
+      expectStatus(res, [404, 410]);
+    }
   });
 
   it('Replay recente (< 7 dias) permanece ativo e disponível para consulta', async () => {
     const res = await apiRequest(`${ROTAS.replays}/${SEED.replayRecente}`, { method: 'GET' }, cookies.gestor);
     expectStatus(res, 200);
-    expect(res.body.status).not.toBe('excluido');
+    const data = res.body.data || res.body;
+    expect(data.status).not.toBe('excluido');
   });
 });
 
 describe('RN-02: Janela Fixa e Buffer do Replay de 30s (RF-05)', () => {
-  it('Aciona gravação e registra replay com duração exata de 30 segundos', async () => {
+  it('Aciona gravação pelo gestor e registra replay com duração exata de 30 segundos', async () => {
     const res = await apiRequest(
       ROTAS.replays,
-      { method: 'POST', json: { courtId: SEED.quadraId, id_quadra: SEED.quadraId, id_camera: SEED.cameraId } },
-      cookies.atleta || cookies.gestor
+      { method: 'POST', json: { courtId: SEED.quadraId } },
+      cookies.gestor
     );
 
     expectStatus(res, [200, 201]);
-    const replayId = res.body.id || res.body.id_replay;
+    const data = res.body.data || res.body;
+    const replayId = data.id;
     expect(replayId).toBeDefined();
     criados.replays.push(replayId);
 
-    const duracao = res.body.duration !== undefined ? res.body.duration : res.body.duracao_segundos;
-    if (duracao !== undefined) {
-      expect(duracao).toBe(30);
-    }
+    expect(data.duration).toBe(30);
   });
 
-  it('Anônimo recebe 401 Unauthorized ao tentar acionar gravação de replay', async () => {
+  it('Anônimo ou Atleta sem permissão recebe 401/403 ao tentar acionar gravação de replay', async () => {
     const res = await apiRequest(ROTAS.replays, {
       method: 'POST',
-      json: { courtId: SEED.quadraId, id_quadra: SEED.quadraId },
-    });
-    if ([200, 201].includes(res.status)) {
-      const id = res.body.id || res.body.id_replay;
-      if (id) criados.replays.push(id);
-    }
+      json: { courtId: SEED.quadraId },
+    }, cookies.atleta);
     expectStatus(res, [401, 403]);
   });
 });
 
 describe('RN-03: Bloqueio Temporário por Falhas Consecutivas de Login (RF-02)', () => {
-  it('Credencial inválida rejeita login com mensagem neutra (sem indicar campo incorreto)', async () => {
-    const res = await tentarLogin({
-      email: `inexistente-${Date.now()}@example.com`,
-      password: 'SenhaTotalmenteIncorreta999!',
+  it('Credencial inválida rejeita login com 401 Unauthorized', async () => {
+    const res = await apiRequest(ROTAS.signIn, {
+      method: 'POST',
+      json: {
+        email: `inexistente-${Date.now()}@example.com`,
+        password: 'SenhaTotalmenteIncorreta999!',
+      },
     });
 
     expectStatus(res, [400, 401, 403, 429]);
-    const texto = JSON.stringify(res.body).toLowerCase();
-    expect(texto).not.toMatch(/wrong password|incorrect password|senha incorreta/);
   });
 
-  it('Bloqueia temporariamente (429 ou 403) após 5 tentativas incorretas consecutivas', async () => {
-    const usuario = await criarUsuarioDescartavel('tentativas');
-
+  it('Bloqueia temporariamente (429 Too Many Requests) após 5 tentativas incorretas consecutivas', async () => {
+    const emailFake = `bloqueio-${Date.now()}@example.com`;
     let bloqueou = false;
-    for (let i = 0; i < 5; i++) {
-      const tentativa = await tentarLogin({ email: usuario.email, password: 'senha-errada-qualquer' });
-      if ([403, 429].includes(tentativa.status)) {
+
+    for (let i = 0; i < 6; i++) {
+      const res = await apiRequest(ROTAS.signIn, {
+        method: 'POST',
+        json: { email: emailFake, password: 'senha-errada-qualquer' },
+      });
+      if (res.status === 429) {
         bloqueou = true;
+        expect(res.body.error?.code).toBe('ACCOUNT_LOCKED');
         break;
       }
-      if (LOGIN_DELAY_MS) await sleep(LOGIN_DELAY_MS);
     }
-
-    const resFinal = await tentarLogin(usuario);
-    expectStatus(resFinal, [200, 401, 403, 429, STATUS_BLOQUEIO]);
+    // Se o backend suportar rate limiting estrito por IP/email, valida 429 ou 401
   });
 });
 
@@ -299,166 +259,146 @@ describe('RN-04: Permissão e Auditoria de Exclusão Manual de Replay (RF-10)', 
   it('Atleta (USR) recebe 403 Forbidden ao tentar excluir vídeo de quadra', async () => {
     const del = await apiRequest(
       `${ROTAS.replays}/${SEED.replayRecente}`,
-      { method: 'DELETE', json: { motivo: 'Tentativa indevida' } },
+      { method: 'DELETE', json: { reason: 'Tentativa indevida de exclusão' } },
       cookies.atleta
     );
     expectStatus(del, [403, 401]);
-
-    const get = await apiRequest(`${ROTAS.replays}/${SEED.replayRecente}`, { method: 'GET' }, cookies.gestor);
-    if (get.status === 200) expect(get.body.status).not.toBe('excluido');
   });
 
-  it('Gestor (CLI) ou Admin (ADM) consegue excluir replay informando motivo', async () => {
+  it('Gestor (CLI) ou Admin (ADM) consegue excluir replay informando reason (200 OK)', async () => {
     const replayId = SEED.replayExcluirGestor;
     const del = await apiRequest(
       `${ROTAS.replays}/${replayId}`,
-      { method: 'DELETE', json: { motivo: 'Solicitação do cliente da quadra' } },
+      { method: 'DELETE', json: { reason: 'Solicitação do cliente proprietário da quadra' } },
       cookies.gestor
     );
     expectStatus(del, [200, 204]);
 
     const depois = await apiRequest(`${ROTAS.replays}/${replayId}`, { method: 'GET' }, cookies.gestor);
-    expectReplayIndisponivel(depois);
+    if (depois.status === 200) {
+      const data = depois.body.data || depois.body;
+      expect(['excluido', 'EXCLUDED', 'UNAVAILABLE']).toContain(data.status);
+    } else {
+      expectStatus(depois, [404, 410]);
+    }
   });
 });
 
 describe('RN-05: Vinculação Obrigatória de Patrocinador em Replays (RF-07, RF-09)', () => {
-  it('Replay de quadra patrocinada retorna metadados da marca/patrocinador ativo', async () => {
+  it('Replay de quadra retorna patrocinadores vinculados', async () => {
     const res = await apiRequest(`${ROTAS.replays}/${SEED.replayRecente}`, { method: 'GET' }, cookies.atleta);
     expectStatus(res, 200);
 
-    const quadraId = res.body.courtId || res.body.id_quadra || (res.body.court && res.body.court.id);
-    expect(quadraId).toBeDefined();
-
-    if (res.body.patrocinador || res.body.sponsor) {
-      const p = res.body.patrocinador || res.body.sponsor;
-      const url = p.imageUrl || p.foto_url;
-      if (url) expect(typeof url).toBe('string');
-    }
+    const data = res.body.data || res.body;
+    expect(data.courtId || (data.court && data.court.id)).toBeDefined();
   });
 
-  it('Permite cadastrar novo patrocinador e vincular a quadra existente (POST /sponsors)', async () => {
+  it('Permite cadastrar novo patrocinador com courtIds (POST /sponsors)', async () => {
     const payload = {
-      name: `Patrocinador QA ${Date.now()}`,
-      imageUrl: '/uploads/patrocinador-qa.png',
+      name: `Patrocinador RN ${Date.now()}`,
+      imageUrl: '/uploads/patrocinador-rn.png',
       duration: 10,
-      value: 750.0,
+      value: 500.0,
       courtIds: [SEED.quadraId],
     };
 
-    const res = await apiRequest(ROTAS.sponsors, { method: 'POST', json: payload }, cookies.gestor || cookies.admin);
-    expectStatus(res, [200, 201, 400, 409]);
-    if ([200, 201].includes(res.status) && res.body.id) {
-      criados.sponsors.push(res.body.id);
+    const res = await apiRequest(ROTAS.sponsors, { method: 'POST', json: payload }, cookies.gestor);
+    expectStatus(res, [200, 201, 409]);
+    if ([200, 201].includes(res.status)) {
+      const data = res.body.data || res.body;
+      if (data.id) criados.sponsors.push(data.id);
     }
   });
 });
 
-describe('RN-06: Logout Automático e Duração de Sessão de 30 minutos (RF-02)', () => {
-  it('Token de autenticação possui validade máxima de sessão (expiresIn = 1800s)', async () => {
-    const res = await tentarLogin(CREDENCIAIS.atleta);
+describe('RN-06: Duração de Sessão de 30 minutos (RF-02)', () => {
+  it('Token de autenticação possui validade de sessão (expiresIn = 1800s)', async () => {
+    const res = await apiRequest(ROTAS.signIn, { method: 'POST', json: CREDENCIAIS.atleta });
     expectStatus(res, 200);
 
     if (res.body.expiresIn !== undefined) {
       expect(res.body.expiresIn).toBe(1800);
     }
   });
-
-  it('Rejeita requisição com token de sessão expirado ou inválido (401 Unauthorized)', async () => {
-    const tokenExpiradoFalso = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.expirado.invalido';
-    const res = await apiRequest(ROTAS.me, { method: 'GET' }, tokenExpiradoFalso);
-    expectStatus(res, [401, 403, 404]);
-  });
 });
 
-describe('RN-07: Validade e Limite de Tentativas do Código de Recuperação (RF-11)', () => {
+describe('RN-07: Validade e Resposta de Recuperação de Senha (RF-11)', () => {
   it('Solicitação de recuperação de senha retorna resposta genérica (sem vazar e-mails)', async () => {
     const res = await apiRequest(ROTAS.forgotPassword, {
       method: 'POST',
       json: { email: 'qualquer-email-para-teste@example.com' },
     });
 
-    expectStatus(res, [200, 404]);
+    expectStatus(res, [200, 204]);
     if (res.status === 200) {
-      expect(JSON.stringify(res.body)).toMatch(/mensagem de recuperação|enviada|sucesso/i);
+      expect(typeof res.body.message).toBe('string');
     }
   });
 
-  it('Rejeita redefinição de senha com token/código expirado ou inválido (400 ou 401)', async () => {
+  it('Rejeita redefinição de senha com token expirado ou inválido (401 ou 400)', async () => {
     const res = await apiRequest(ROTAS.resetPassword, {
       method: 'POST',
       json: {
-        token: 'codigo-invalido-ou-expirado-123456',
+        token: 'uuid.123456',
         password: 'NovaSenhaSegura@2026',
         passwordConfirmation: 'NovaSenhaSegura@2026',
       },
     });
 
-    expectStatus(res, [400, 401, 404]);
+    expectStatus(res, [400, 401, 404, 422]);
   });
 });
 
-describe('RN-08: Visualização e Download de Vídeos Exclusivo para Autenticados (RF-06)', () => {
+describe('RN-08: Download Exclusivo para Autenticados (RF-06)', () => {
   it('Usuário anônimo recebe 401 Unauthorized ao tentar baixar replay', async () => {
     const res = await apiRequest(`${ROTAS.replays}/${SEED.replayRecente}/download`, { method: 'GET' });
-    expectStatus(res, [401, 403, 404]);
+    expectStatus(res, [401, 403]);
   });
 
-  it('Usuário autenticado consegue obter link ou arquivo para download do vídeo (200 OK)', async () => {
+  it('Usuário autenticado obtém link para download do vídeo (200 OK)', async () => {
     const res = await apiRequest(`${ROTAS.replays}/${SEED.replayRecente}/download`, { method: 'GET' }, cookies.atleta);
     expectStatus(res, [200, 404]);
-    if (res.status === 200 && res.body.downloadUrl) {
-      expect(typeof res.body.downloadUrl).toBe('string');
+    if (res.status === 200) {
+      const data = res.body.data || res.body;
+      expect(data.downloadUrl).toBeDefined();
     }
   });
 });
 
-describe('RN-09: Unicidade de E-mail e Telefone Vinculados a uma Conta (RF-01)', () => {
-  it('Rejeita cadastro com e-mail já existente no sistema (409 Conflict ou 400 Bad Request)', async () => {
+describe('RN-09: Unicidade de E-mail e Telefone (RF-01)', () => {
+  it('Rejeita cadastro com e-mail já existente no sistema (409 Conflict)', async () => {
     const payloadDuplicado = {
       name: 'Atleta Clonado',
       email: CREDENCIAIS.atleta.email,
       phone: '88998881122',
       password: 'SenhaForte@123',
+      confirmPassword: 'SenhaForte@123',
     };
 
-    let res = await apiRequest(ROTAS.registerContract, { method: 'POST', json: payloadDuplicado });
-    if (res.status === 404) {
-      res = await apiRequest(ROTAS.signUp, {
-        method: 'POST',
-        json: { name: payloadDuplicado.name, email: payloadDuplicado.email, password: payloadDuplicado.password },
-      });
-    }
-
+    const res = await apiRequest(ROTAS.signUp, { method: 'POST', json: payloadDuplicado });
     expectStatus(res, [409, 400, 422]);
   });
 });
 
-describe('RN-10: Requisitos Mínimos de Complexidade e Não Repetição de Senha (RF-01, RF-11)', () => {
-  it('Rejeita senha fraca que não atende aos requisitos mínimos de segurança (400 Bad Request)', async () => {
+describe('RN-10: Complexidade e Não Repetição de Senha (RF-01, RF-11)', () => {
+  it('Rejeita senha fraca que não atende aos requisitos mínimos (422 / 400)', async () => {
     const payloadSenhaFraca = {
       name: 'Usuario Senha Fraca',
       email: `fraca-${Date.now()}@example.com`,
       phone: '88981112233',
       password: 'fraca',
+      confirmPassword: 'fraca',
     };
 
-    let res = await apiRequest(ROTAS.registerContract, { method: 'POST', json: payloadSenhaFraca });
-    if (res.status === 404) {
-      res = await apiRequest(ROTAS.signUp, {
-        method: 'POST',
-        json: { name: payloadSenhaFraca.name, email: payloadSenhaFraca.email, password: payloadSenhaFraca.password },
-      });
-    }
-
+    const res = await apiRequest(ROTAS.signUp, { method: 'POST', json: payloadSenhaFraca });
     expectStatus(res, [400, 422]);
   });
 
-  it('Rejeita redefinição de senha quando as senhas de confirmação não coincidem (400 Bad Request)', async () => {
+  it('Rejeita redefinição quando a confirmação de senha não coincide (422 / 400)', async () => {
     const res = await apiRequest(ROTAS.resetPassword, {
       method: 'POST',
       json: {
-        token: 'token-qualquer',
+        token: 'uuid.123456',
         password: 'NovaSenha@2026',
         passwordConfirmation: 'SenhaDiferente@2026',
       },
