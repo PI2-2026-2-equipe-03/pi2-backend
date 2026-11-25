@@ -65,6 +65,12 @@ export const quadrasQuerySchema = z.object({
   arenaId: id.optional(),
   disponivel: z.enum(['true', 'false']).optional(),
 })
+export const quadraCreateBodySchema = z.object({ 
+  arenaId: id, nome: z.string().min(1).max(100)
+})
+export const quadraUpdateBodySchema = z.object({
+  nome: z.string().min(1).max(100).optional(), disponivel: z.boolean().optional()
+})
 
 export const authUserSchema = z.object({
   id,
