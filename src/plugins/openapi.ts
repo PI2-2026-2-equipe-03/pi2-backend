@@ -47,7 +47,7 @@ export default fp(async (app) => {
   })
 
   await app.register(swaggerUi, {
-    routePrefix: 'api/api-docs',
+    routePrefix: '/api-docs',
     uiConfig: {
       docExpansion: 'list',
       deepLinking: true,
