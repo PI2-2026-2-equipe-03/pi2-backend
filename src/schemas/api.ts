@@ -148,6 +148,30 @@ export const managerMetricsSchema = z.object({
     peakHours: z.array(z.object({ hour: z.string(), accesses: z.number() })),
     courts: z.array(z.object({ id, name: z.string(), replays: z.number() })),
 })
+export const managerRequestsQuerySchema = z.object({
+    status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+}).strict()
+
+export const managerRequestListItemSchema = z.object({
+    id: z.number().int(),
+    user: z.object({ id: z.guid(), name: z.string(), email: z.string() }),
+    cpf: z.string(),
+    cnpj: z.string().nullable(),
+    companyName: z.string(),
+    courtQuantity: z.number().int(),
+    address: z.object({
+        street: z.string(),
+        neighborhood: z.string(),
+        zipCode: z.string(),
+        city: z.string(),
+        state: z.string(),
+    }),
+    status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
+    createdAt: z.iso.datetime(),
+    reviewedAt: z.iso.datetime().nullable(),
+    reviewedBy: z.guid().nullable(),
+})
+
 export const forgotPasswordBodySchema = z.object({ email: z.email() })
 export const resetPasswordBodySchema = z.object({
     token: z.string(),
