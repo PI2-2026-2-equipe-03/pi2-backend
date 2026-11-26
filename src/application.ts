@@ -18,6 +18,7 @@ import { camerasController } from "./controllers/cameras.controller.js";
 import { replaysController } from "./controllers/replays.controller.js";
 import { arenasController } from "./controllers/arenas.controller.js";
 import { quadrasController } from "./controllers/quadras.controller.js";
+import { sponsorsController } from "./controllers/sponsors.controller.js";
 
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
 import openapiPlugin from './plugins/openapi.js'
@@ -74,6 +75,7 @@ await app.register(async api => {
     await api.register(managementController);
     await api.register(passwordRecoveryController);
     await api.register(camerasController);
+    await api.register(sponsorsController);
 }, { prefix: '/api' })
 
 const healthHandler = async () => {

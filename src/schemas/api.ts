@@ -146,6 +146,8 @@ export const sponsorResponseSchema = z.object({
     value: z.number(),
     courtIds: z.array(id),
 })
+export const sponsorUpdateBodySchema = sponsorBodySchema.partial()
+
 export const adminMetricsSchema = z.object({
     activeUsers: z.number(),
     totalCourts: z.number(),
