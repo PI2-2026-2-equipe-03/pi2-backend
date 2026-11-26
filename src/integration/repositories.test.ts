@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { randomUUID } from 'node:crypto'
-import { readdir, readFile } from 'node:fs/promises'
+import { applyDatabaseScripts } from './database-setup.js'
 import { RepositoryError } from '../repositories/errors.js'
 import * as replays from '../repositories/replay.repository.js'
 import * as metadata from '../repositories/replay-metadata.repository.js'
@@ -36,10 +36,7 @@ async function fixture(url: string | null, time: string, status: string, created
 beforeAll(async () => {
   await adminPool.query(`CREATE DATABASE "${databaseName}"`)
   db = new Pool({ connectionString: databaseUrl.toString() })
-  const initDir = new URL('../db/init/', import.meta.url)
-  for (const file of (await readdir(initDir)).filter(f => f.endsWith('.sql')).sort()) {
-    await db.query(await readFile(new URL(file, initDir), 'utf8'))
-  }
+  await applyDatabaseScripts(db)
   const arena = await db.query(
     `INSERT INTO arena (id_gestor, nome, cidade, endereco)
      VALUES ('10000000-0000-0000-0000-000000000001', 'Arena B403', 'Fortaleza', 'Rua Teste') RETURNING id_arena`)

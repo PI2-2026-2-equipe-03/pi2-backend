@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { randomUUID } from 'node:crypto'
-import { readdir, readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
+import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
+import { applyDatabaseScripts } from './database-setup.js'
 import type { FastifyInstance } from 'fastify'
 import { createServer } from 'node:http'
 import { execFile } from 'node:child_process'
@@ -56,10 +57,7 @@ beforeAll(async () => {
     process.env.EMAIL_DELIVERY_URL = `http://127.0.0.1:${address.port}/deliver`
     await adminPool.query(`CREATE DATABASE "${databaseName}"`)
     db = new Pool({ connectionString: databaseUrl.toString() })
-    const initDir = new URL('../db/init/', import.meta.url)
-    for (const file of (await readdir(initDir)).filter(file => file.endsWith('.sql')).sort()) {
-        await db.query(await readFile(new URL(file, initDir), 'utf8'))
-    }
+    await applyDatabaseScripts(db)
     process.env.AUTH_DATABASE_URL = process.env.REPLAY_DATABASE_URL = process.env.DATABASE_URL = databaseUrl.toString()
     process.env.BETTER_AUTH_URL = 'http://localhost:3000'
     process.env.BETTER_AUTH_SECRET = randomUUID() + randomUUID()
