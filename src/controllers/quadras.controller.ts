@@ -24,8 +24,7 @@ const permissao = `
 export async function quadrasController(app: FastifyInstance) {
     const r = app.withTypeProvider<ZodTypeProvider>();
 
-    app.withTypeProvider<ZodTypeProvider>().get(
-        "/courts",
+    r.get("/courts",
         {
             ...docOnly,
             schema: {
