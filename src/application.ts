@@ -14,6 +14,7 @@ import dbPlugin from "./plugins/db.js";
 import betterAuthPlugin from "./plugins/better-auth.js";
 
 import { authController } from "./controllers/auth.controller.js";
+import { camerasController } from "./controllers/cameras.controller.js";
 import { replaysController } from "./controllers/replays.controller.js";
 import { arenasController } from "./controllers/arenas.controller.js";
 import { quadrasController } from "./controllers/quadras.controller.js";
@@ -72,6 +73,7 @@ await app.register(async api => {
     await api.register(quadrasController);
     await api.register(managementController);
     await api.register(passwordRecoveryController);
+    await api.register(camerasController);
 }, { prefix: '/api' })
 
 const healthHandler = async () => {

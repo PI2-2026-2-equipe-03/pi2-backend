@@ -26,17 +26,17 @@ const updateSchema = z.object({
     fotoUrl,
 }).strict().refine(b => Object.keys(b).length > 0, "Informe ao menos um campo");
 
-async function quemSou(app: FastifyInstance, authId: string) {
-    const r = await app.pg.query(
-        `SELECT ua.id_usuario AS id, p.codigo FROM usuario_auth ua
+export async function arenasController(app: FastifyInstance) {
+    async function quemSou(app: FastifyInstance, authId: string) {
+        const r = await app.pg.query(
+            `SELECT ua.id_usuario AS id, p.codigo FROM usuario_auth ua
      JOIN usuario u ON u.id_usuario = ua.id_usuario
      JOIN perfil p ON p.id_perfil = u.id_perfil WHERE ua.id_auth = $1`,
-        [authId]
-    );
-    return r.rows[0] as { id: string; codigo: "ADM" | "CLI" | "USR" };
-}
+            [authId]
+        );
+        return r.rows[0] as { id: string; codigo: "ADM" | "CLI" | "USR" };
+    }
 
-export async function arenasController(app: FastifyInstance) {
     const erros = { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema };
     const r = app.withTypeProvider<ZodTypeProvider>();
 

@@ -16,6 +16,7 @@ export default fp(async (app) => {
         { name: 'sponsors', description: 'Patrocinadores' },
         { name: 'metrics', description: 'Métricas de administrador e gestor' },
         { name: 'manager-requests', description: 'Solicitações de cadastro como gestor de arena' },
+        { name: 'cameras', description: 'Câmeras das quadras' },
       ],
       components: {
         securitySchemes: {

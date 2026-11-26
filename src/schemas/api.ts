@@ -42,6 +42,16 @@ export const replayFiltersSchema = z.object({
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
 })
 
+const cameraStatus = z.enum(['ativa', 'inativa', 'manutencao'])
+export const cameraSchema = z.object({ id, quadraId: id, identificador: z.string(), status: cameraStatus })
+export const camerasQuerySchema = z.object({ quadraId: id.optional(), status: cameraStatus.optional() })
+export const cameraCreateBodySchema = z.object({
+    quadraId: id, identificador: z.string().min(1).max(100), status: cameraStatus.optional(),
+})
+export const cameraUpdateBodySchema = z.object({
+    identificador: z.string().min(1).max(100).optional(), status: cameraStatus.optional(),
+})
+
 export const arenaSchema = z.object({
     id,
     clienteId: id,
