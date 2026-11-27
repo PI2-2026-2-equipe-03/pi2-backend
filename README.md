@@ -53,9 +53,11 @@ Os vídeos ficam num bucket R2 **privado**. O banco guarda só a chave do objeto
 | `S3_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
 | `S3_REGION` | `auto` (padrão) |
 | `S3_BUCKET` | Nome do bucket |
-| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Token de API do R2 com leitura e escrita no bucket |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Credenciais S3 de um token de API do R2 com permissão *Object Read & Write* restrita a este bucket |
 | `UPLOAD_URL_TTL_SECONDS` | Validade das URLs de upload do agente (padrão 600) |
 | `DOWNLOAD_URL_TTL_SECONDS` | Validade dos links de vídeo do app (padrão 3600) |
+
+Ao criar o token (R2 → *Manage API tokens*), a Cloudflare exibe uma única vez o valor do token, o *Access Key ID* e o *Secret Access Key*. A API S3 usa só os dois últimos; o valor do token serve para a API REST da Cloudflare e não é configurado aqui. Restringir o token ao bucket limita o impacto de um vazamento das credenciais.
 
 No Docker Compose, essas variáveis são repassadas do `.env` ao serviço `backend`. Sem elas, as rotas de upload do agente respondem `503` e a fila de exclusão (`media_deletion_job`) fica pendente até o storage ser configurado.
 
