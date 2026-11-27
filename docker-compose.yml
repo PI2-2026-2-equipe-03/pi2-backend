@@ -1,5 +1,7 @@
-# compose individual do backend — espelha o serviço db + backend do compose central
-# (PI2-2026-2-equipe-03). o nome fixo mantém o volume do banco já existente.
+# compose base do backend — configuração de PRODUÇÃO.
+# em dev, o docker-compose.override.yml é carregado automaticamente por `docker compose up`.
+# em produção, ignore o override: `docker compose -f docker-compose.yml up -d --build`.
+# o nome fixo mantém o volume do banco já existente.
 name: pi2-backend
 
 services:
@@ -10,13 +12,13 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-tagravado}
       POSTGRES_USER: ${POSTGRES_USER:-tagravado}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tagravado}
-    ports:
-      # se a 5432 já estiver ocupada no host (Postgres local), sobrescreva POSTGRES_PORT no .env.
-      - "${POSTGRES_PORT:-5432}:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    # sem porta publicada: o backend acessa o banco pela rede interna.
     volumes:
       - tagravado_db_data:/var/lib/postgresql/data
-      - ./src/db/init:/docker-entrypoint-initdb.d:ro
+      # o script aplica as migrações e, se /seed estiver montado (apenas em dev), o seed.
+      - ./src/db/docker-init.sh:/docker-entrypoint-initdb.d/docker-init.sh:ro
+      - ./src/db/init:/migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tagravado} -d ${POSTGRES_DB:-tagravado}"]
       interval: 5s
@@ -28,6 +30,8 @@ services:
   backend:
     build:
       context: .
+      # stage de produção do Dockerfile multi-stage (dist compilado + deps sem dev).
+      target: runner
     container_name: tagravado-backend
     restart: unless-stopped
     depends_on:
@@ -37,21 +41,32 @@ services:
       # API_PORT é o nome antigo; continua aceito para não quebrar .env já existente.
       - "${BACKEND_PORT:-${API_PORT:-3000}}:3000"
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
       # backend conecta no db pelo nome do serviço na rede interna.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD:-tagravado}@db:5432/${POSTGRES_DB:-tagravado}
-      AUTH_DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD:-tagravado}@db:5432/${POSTGRES_DB:-tagravado}
-      REPLAY_DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD:-tagravado}@db:5432/${POSTGRES_DB:-tagravado}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-tagravado}
+      AUTH_DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-tagravado}
+      REPLAY_DATABASE_URL: postgresql://${POSTGRES_USER:-tagravado}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-tagravado}
       # BETTER_AUTH_URL = origem pública que o browser enxerga (vite proxy mantém same-origin em dev).
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:5173}
       # origens aceitas pelo Better Auth, separadas por vírgula; inclua o IP da rede para testar no celular.
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:5173}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-env}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?defina BETTER_AUTH_SECRET no .env}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       # o Postgres do compose não usa TLS; produção (Supabase) mantém o padrão com certificado.
       DB_SSL: ${DB_SSL:-false}
+      # pools do Better Auth; padrões iguais aos do código (vazio viraria 0).
+      AUTH_DB_POOL_MAX: ${AUTH_DB_POOL_MAX:-2}
+      AUTH_LOCK_POOL_MAX: ${AUTH_LOCK_POOL_MAX:-1}
+      # origens aceitas pelo CORS, separadas por vírgula.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      # sem CRON_SECRET, a rota /api/cron/expire-replays responde 503.
+      CRON_SECRET: ${CRON_SECRET:-}
+      SUPABASE_CA_CERT: ${SUPABASE_CA_CERT:-}
+      # adaptador opcional: sem e-mail, recuperação retorna 503.
+      EMAIL_DELIVERY_URL: ${EMAIL_DELIVERY_URL:-}
+      EMAIL_DELIVERY_TOKEN: ${EMAIL_DELIVERY_TOKEN:-}
       # armazenamento dos replays (Cloudflare R2, API S3). sem estas variáveis, upload e exclusão de mídia ficam desativados.
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_REGION: ${S3_REGION:-auto}
@@ -60,10 +75,13 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       UPLOAD_URL_TTL_SECONDS: ${UPLOAD_URL_TTL_SECONDS:-600}
       DOWNLOAD_URL_TTL_SECONDS: ${DOWNLOAD_URL_TTL_SECONDS:-3600}
-    volumes:
-      # Bind mount + volume anônimo em node_modules: hot reload via `tsx watch` sem sobrescrever deps do container.
-      - .:/app
-      - /app/node_modules
+    # sem bind mount em produção: o container roda apenas o que foi copiado para a imagem.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - pi2-net
 
@@ -71,6 +89,7 @@ networks:
   pi2-net:
     name: pi2-net
     driver: bridge
+    external: true
 
 volumes:
   tagravado_db_data:

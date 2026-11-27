@@ -73,7 +73,7 @@ export async function agentController(app: FastifyInstance) {
   app.addHook('preHandler', requireAgent)
 
   // Quadras disponíveis da arena com a câmera ativa (identificador = canal do DVR).
-  app.get('/api/agent/arenas/:id/config', hidden, async request => {
+  app.get('/agent/arenas/:id/config', hidden, async request => {
     const { id } = parse(idParams, request.params)
     assertAgentArena(request, id)
     const arena = await app.pg.query('SELECT id_arena, nome FROM arena WHERE id_arena = $1', [id])
@@ -101,7 +101,7 @@ export async function agentController(app: FastifyInstance) {
   })
 
   // Cria o replay pendente com o horário do clique, aplicando as mesmas regras do app.
-  app.post('/api/agent/replays', hidden, async (request, reply) => {
+  app.post('/agent/replays', hidden, async (request, reply) => {
     const body = parse(createSchema, request.body)
     const pressedAt = new Date(body.pressed_at)
     if (pressedAt.getTime() > Date.now() + CLOCK_SKEW_MS) {
@@ -129,7 +129,7 @@ export async function agentController(app: FastifyInstance) {
   })
 
   // URLs PUT pré-assinadas: o agente envia o vídeo e a miniatura direto ao R2.
-  app.post('/api/agent/replays/:id/upload-urls', hidden, async request => {
+  app.post('/agent/replays/:id/upload-urls', hidden, async request => {
     const { id } = parse(idParams, request.params)
     const replay = await loadReplay(app.pg, request, id)
     if (replay.status !== 'pendente') throw new HttpError(409, `Replay já está '${replay.status}'`, 'CONFLICT')
@@ -148,7 +148,7 @@ export async function agentController(app: FastifyInstance) {
   })
 
   // Confere o vídeo no R2 e publica o replay. Idempotente para replays já disponíveis.
-  app.post('/api/agent/replays/:id/complete', hidden, async request => {
+  app.post('/agent/replays/:id/complete', hidden, async request => {
     const { id } = parse(idParams, request.params)
     const replay = await loadReplay(app.pg, request, id)
     if (replay.status === 'disponivel') return agentReplayRow(app.pg, id)
@@ -179,7 +179,7 @@ export async function agentController(app: FastifyInstance) {
   })
 
   // Descarta o replay pendente quando o recorte falha no agente e registra a falha.
-  app.delete('/api/agent/replays/:id', hidden, async (request, reply) => {
+  app.delete('/agent/replays/:id', hidden, async (request, reply) => {
     const { id } = parse(idParams, request.params)
     const body = parse(discardSchema, request.body)
     const replay = await loadReplay(app.pg, request, id)

@@ -36,10 +36,11 @@ const SEED = {
 };
 
 const CREDENCIAIS = {
-  admin: { email: 'admin01@example.com', password: 'SenhaValida123' },
-  gestor: { email: 'carlos.mendes@example.com', password: 'SenhaValida123' },
-  atleta: { email: 'atleta.teste@example.com', password: 'SenhaValida123' },
+  gestor: { email: 'cli@tagravado.test', password: 'Cli@Tagravado2026' },
+  admin: { email: 'adm@tagravado.test', password: 'Adm@Tagravado2026' },
+  atleta: { email: 'usr@tagravado.test', password: 'Usr@Tagravado2026' },
 };
+
 
 const authState = {
   adminCookie: null,

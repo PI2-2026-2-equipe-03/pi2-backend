@@ -14,10 +14,14 @@ const tokenHash = (token: string) => createHmac('sha256', process.env.BETTER_AUT
 
 function deliveryUrl() {
   const configured = process.env.EMAIL_DELIVERY_URL
+
   if (!configured) throw new HttpError(503, 'O serviço de recuperação de senha não está configurado')
+
   const url = new URL(configured)
   const local = process.env.NODE_ENV !== 'production' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) throw new HttpError(503, 'O serviço de e-mail deve usar HTTPS')
+
   return url
 }
 
@@ -32,25 +36,35 @@ export async function passwordRecoveryController(app: FastifyInstance) {
 }, async (request, reply) => {
     const { email } = parse(emailSchema, request.body)
     const url = deliveryUrl()
+
     if (!process.env.BETTER_AUTH_SECRET) throw new HttpError(503, 'Configuração de autenticação incompleta')
+
     const client = await authPool.connect()
+
     try {
       await client.query('BEGIN')
+
       // Ordem fixa dos locks de e-mail e IP evita deadlocks entre destinatários.
       for (const key of ['recovery-email:' + email, 'recovery-ip:' + request.ip]) {
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [key])
       }
+
       const recent = await client.query(`SELECT count(*) FILTER(WHERE email=$1)::int AS email_count,
         count(*) FILTER(WHERE ip=$2)::int AS ip_count FROM password_recovery_request
         WHERE criado_em>now()-INTERVAL '1 hour' AND (email=$1 OR ip=$2)`, [email,request.ip])
+      
       if (recent.rows[0].email_count >= 3 || recent.rows[0].ip_count >= 20) throw new HttpError(429, 'Limite de solicitações de recuperação atingido. Tente novamente em uma hora')
+
       await client.query('INSERT INTO password_recovery_request(email,ip) VALUES($1,$2)', [email,request.ip])
+
       const user = await client.query('SELECT id FROM "user" WHERE lower(email)=$1', [email])
+
       if (user.rowCount) {
         const id = randomUUID()
         const token = `${id}.${randomInt(0,1000000).toString().padStart(6,'0')}`
         await client.query('UPDATE password_recovery SET used_at=now() WHERE id_auth=$1 AND used_at IS NULL', [user.rows[0].id])
         await client.query('INSERT INTO password_recovery(id,id_auth,token_hash) VALUES($1,$2,$3)', [id,user.rows[0].id,tokenHash(token)])
+
         try {
           const response = await fetch(url, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
             headers: { 'content-type': 'application/json', ...(process.env.EMAIL_DELIVERY_TOKEN ? { authorization: `Bearer ${process.env.EMAIL_DELIVERY_TOKEN}` } : {}) },
@@ -60,7 +74,9 @@ export async function passwordRecoveryController(app: FastifyInstance) {
           await response.body?.cancel()
         } catch { throw new HttpError(503, 'Não foi possível enviar o e-mail de recuperação. Tente novamente mais tarde') }
       }
+
       await client.query('COMMIT')
+      
       return reply.code(200).send({ message: 'Se o e-mail estiver cadastrado, uma mensagem de recuperação será enviada.' })
     } catch (error) { await client.query('ROLLBACK'); throw error }
     finally { client.release() }

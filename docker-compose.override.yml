@@ -1,0 +1,23 @@
+# override de DESENVOLVIMENTO — carregado automaticamente por `docker compose up`.
+# só contém o que difere da produção (docker-compose.yml).
+
+services:
+  db:
+    container_name: tagravado-db-dev
+    ports:
+      # se a 5432 já estiver ocupada no host (Postgres local), sobrescreva POSTGRES_PORT no .env.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # dados sintéticos: aplicados após as migrações, apenas em volume novo.
+      - ./src/db/seed:/seed:ro
+
+  backend:
+    build:
+      target: dev
+    container_name: tagravado-backend-dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      # Bind mount + volume anônimo em node_modules: hot reload via `tsx watch` sem sobrescrever deps do container.
+      - .:/app
+      - /app/node_modules

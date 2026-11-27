@@ -8,10 +8,22 @@ Requisitos: Node.js 22+ e PostgreSQL 16+. Copie `.env.example` para `.env` e aju
 
 ```bash
 npm ci
-# No banco vazio, aplique os arquivos src/db/init/*.sql na ordem numérica.
+# No banco vazio, aplique os arquivos src/db/init/*.sql na ordem numérica
+# e, se quiser dados sintéticos, src/db/seed/*.sql em seguida.
 # Ou use Docker Compose, que inicializa o volume novo automaticamente:
 docker compose up --build
 ```
+
+`src/db/init/` contém só migrações (todos os ambientes); `src/db/seed/` contém dados sintéticos, aplicados apenas em desenvolvimento e nos testes de integração.
+
+### Docker: desenvolvimento x produção
+
+Um único `Dockerfile` multi-stage (`dev` e `runner`) atende os dois ambientes:
+
+- **Desenvolvimento:** `docker compose up --build` carrega `docker-compose.yml` + `docker-compose.override.yml` (stage `dev`, hot reload com bind mount, porta do Postgres publicada e seed aplicado).
+- **Produção:** `docker compose -f docker-compose.yml up -d --build` ignora o override (stage `runner`, sem bind mount, banco sem porta publicada e sem seed).
+
+`POSTGRES_PASSWORD` e `BETTER_AUTH_SECRET` são obrigatórios no `.env`. As migrações e o seed só rodam quando o volume do banco está vazio; para reinicializá-lo, `docker compose down -v` apaga o volume e **todos os dados**.
 
 Sem Docker, com o banco já inicializado:
 
@@ -21,7 +33,7 @@ node --env-file=.env --import tsx src/server.ts
 node --env-file=.env --import tsx --watch src/server.ts
 ```
 
-`npm start` e `npm run dev` também funcionam com variáveis injetadas pelo ambiente. A porta vem de `PORT` (padrão 3000); o compose usa `BACKEND_PORT` para publicar a porta. Health check: `GET /health`.
+`npm start` e `npm run dev` também funcionam com variáveis injetadas pelo ambiente. A porta vem de `PORT` (padrão 3000); o compose usa `BACKEND_PORT` para publicar a porta. Health check: `GET /api/health`.
 
 Em volume/banco existente, aplique as novas migrações uma única vez. Consulte a [documentação B3-02](docs/regras-de-negocio-implementadas.md) para comandos, oito rotas, payloads, regras, códigos HTTP e limites das integrações de vídeo/e-mail.
 
@@ -67,7 +79,7 @@ O bucket precisa de uma regra de CORS só se algum navegador fizer upload direto
 
 Cada arena roda o `agent-node`, que grava as câmeras e envia os clipes pelas rotas `/api/agent/*` (contrato em [contrato-api.md](docs/referencias/contrato-api.md#agente-da-arena)). O token de uma arena é exibido uma única vez (só o hash SHA-256 fica no banco). Gerar um novo token desativa os anteriores da mesma arena. Há duas formas de gerá-lo:
 
-- pelo app, com sessão de administrador: `POST /arenas/{id}/agent-token` (o `id` vem de `GET /arenas`);
+- pelo app, com sessão de administrador: `POST /api/arenas/{id}/agent-token` (o `id` vem de `GET /api/arenas`);
 - pelo terminal:
 
 ```bash

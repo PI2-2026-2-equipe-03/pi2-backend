@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
 import { randomUUID } from 'node:crypto'
-import { readdir, readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
+import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
+import { applyDatabaseScripts } from './database-setup.js'
 import type { FastifyInstance } from 'fastify'
 import { createServer } from 'node:http'
 import { execFile } from 'node:child_process'
@@ -54,10 +55,7 @@ beforeAll(async () => {
     process.env.EMAIL_DELIVERY_URL = `http://127.0.0.1:${address.port}/deliver`
     await adminPool.query(`CREATE DATABASE "${databaseName}"`)
     db = new Pool({ connectionString: databaseUrl.toString() })
-    const initDir = new URL('../db/init/', import.meta.url)
-    for (const file of (await readdir(initDir)).filter(file => file.endsWith('.sql')).sort()) {
-        await db.query(await readFile(new URL(file, initDir), 'utf8'))
-    }
+    await applyDatabaseScripts(db)
     process.env.AUTH_DATABASE_URL = process.env.REPLAY_DATABASE_URL = process.env.DATABASE_URL = databaseUrl.toString()
     process.env.BETTER_AUTH_URL = 'http://localhost:3000'
     process.env.BETTER_AUTH_SECRET = randomUUID() + randomUUID()
@@ -631,14 +629,14 @@ describe('Agente da arena — rotas /api/agent com storage simulado', () => {
 
     // Por último: a rotação desativa o token usado pelos testes anteriores.
     it('ADM gera o token do agente pela rota e desativa os anteriores da arena', async () => {
-        const url = `/arenas/${arenaId}/agent-token`
+        const url = `/api/arenas/${arenaId}/agent-token`
         expect((await app.inject({ method: 'POST', url })).statusCode).toBe(401)
         // Conta nova: sessões anteriores foram encerradas pela suíte.
         const operator = await account('operador', '85977775555')
         expect((await app.inject({ method: 'POST', url, headers: bearer(operator.token) })).statusCode).toBe(403)
         await db.query(`INSERT INTO administrador(id_usuario) SELECT id_usuario FROM usuario_auth WHERE id_auth=$1`, [operator.id])
-        expect((await app.inject({ method: 'POST', url: '/arenas/nao-e-uuid/agent-token', headers: bearer(operator.token) })).statusCode).toBe(400)
-        expect((await app.inject({ method: 'POST', url: `/arenas/${randomUUID()}/agent-token`, headers: bearer(operator.token) })).statusCode).toBe(404)
+        expect((await app.inject({ method: 'POST', url: '/api/arenas/nao-e-uuid/agent-token', headers: bearer(operator.token) })).statusCode).toBe(400)
+        expect((await app.inject({ method: 'POST', url: `/api/arenas/${randomUUID()}/agent-token`, headers: bearer(operator.token) })).statusCode).toBe(404)
 
         const issued = await app.inject({ method: 'POST', url, headers: bearer(operator.token) })
         expect(issued.statusCode, issued.body).toBe(201)
