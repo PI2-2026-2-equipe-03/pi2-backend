@@ -40,9 +40,10 @@ Em volume/banco existente, aplique as novas migrações uma única vez. Consulte
 ## Testes
 
 ```bash
-npm test                  # Testes unitários; exclui cópias compiladas em dist/
+npm test                  # Testes unitários (src/tests); não precisam de banco nem de API no ar
 npm run build             # TypeScript
 TEST_DATABASE_URL=postgresql://usuario@127.0.0.1:5433/postgres npm run test:integration
+npm run test:e2e          # E2E (tests/); exigem a API no ar em API_URL (padrão http://localhost:3000/api)
 npm run db:expire         # Retenção + exclusão das mídias no R2
 ```
 

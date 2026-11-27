@@ -4,7 +4,7 @@ import Fastify from "fastify";
 import { quadrasController } from "../controllers/quadras.controller.js";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 
-describe("GET /quadras", () => {
+describe("GET /courts", () => {
   async function criarApp() {
     const app = Fastify();
 
@@ -33,7 +33,7 @@ describe("GET /quadras", () => {
     const { app } = await criarApp();
 
     try {
-      const response = await app.inject("/quadras");
+      const response = await app.inject("/courts");
 
       expect(response.statusCode).toBe(200);
       expect(response.json().data).toHaveLength(1);
@@ -47,7 +47,7 @@ describe("GET /quadras", () => {
     const arenaId = "30000000-0000-0000-0000-000000000006";
 
     try {
-      await app.inject(`/quadras?arenaId=${arenaId}`);
+      await app.inject(`/courts?arenaId=${arenaId}`);
 
       expect(query).toHaveBeenCalledWith(
         expect.any(String),
@@ -62,7 +62,7 @@ describe("GET /quadras", () => {
     const { app, query } = await criarApp();
 
     try {
-      await app.inject("/quadras?disponivel=false");
+      await app.inject("/courts?disponivel=false");
 
       expect(query).toHaveBeenCalledWith(
         expect.any(String),
@@ -79,7 +79,7 @@ describe("GET /quadras", () => {
 
     try {
       await app.inject(
-        `/quadras?arenaId=${arenaId}&disponivel=false`
+        `/courts?arenaId=${arenaId}&disponivel=false`
       );
 
       expect(query).toHaveBeenCalledWith(
@@ -96,7 +96,7 @@ describe("GET /quadras", () => {
 
     try {
       const response = await app.inject(
-        "/quadras?disponivel=talvez"
+        "/courts?disponivel=talvez"
       );
 
       expect(response.statusCode).toBe(400);
@@ -111,7 +111,7 @@ describe("GET /quadras", () => {
 
     try {
       const response = await app.inject(
-        "/quadras?arenaId=invalido"
+        "/courts?arenaId=invalido"
       );
 
       expect(response.statusCode).toBe(400);
@@ -127,7 +127,7 @@ describe("GET /quadras", () => {
 
     try {
       const response = await app.inject(
-        "/quadras?disponivel=true"
+        "/courts?disponivel=true"
       );
 
       expect(response.statusCode).toBe(200);
