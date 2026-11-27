@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { requireAuth } from '../middlewares/require-auth.js'
-import { HttpError, parse } from '../http/errors.js'
+import { HttpError, parse, uuid } from '../http/errors.js'
 import { docOnly } from '../schemas/doc-only.js'
 import { requireRole } from '../middlewares/require-role.js'
 import {
@@ -14,8 +14,11 @@ import {
     managerRequestResponseSchema,
     data,
     managerRequestsQuerySchema,
-    managerRequestListItemSchema
+    managerRequestListItemSchema,
+    arenaParamsSchema,
+    agentTokenResponseSchema,
 } from '../schemas/api.js'
+import { issueAgentToken } from '../services/agent-token.js'
 
 const security: { [key: string]: string[] }[] = [
     { bearerAuth: [] },
@@ -40,6 +43,23 @@ export async function managementController(app: FastifyInstance) {
       FROM quadra q JOIN replay r ON r.id_quadra=q.id_quadra JOIN replay_download_event e ON e.id_replay=r.id_replay
       GROUP BY q.id_quadra ORDER BY accesses DESC,q.id_quadra LIMIT 5`)
         return { ...counts.rows[0], mostAccessedCourts: accessed.rows }
+    })
+
+    // Gera o token do agente da arena (exibido uma única vez) e desativa os tokens anteriores.
+    app.post('/arenas/:id/agent-token', {
+        ...docOnly, preHandler: [requireAuth, requireRole('ADM')],
+        schema: {
+            tags: ['arenas'], summary: 'Gerar token do agente da arena', security,
+            params: arenaParamsSchema,
+            response: { 201: agentTokenResponseSchema, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+        },
+    }, async (request, reply) => {
+        const { id } = parse(z.object({ id: uuid }), request.params)
+        const result = await issueAgentToken(app.pg, id)
+        if (!result.ok) throw new HttpError(404, 'Arena não encontrada', 'NOT_FOUND')
+        const { agentId, arenaId, token, revokedAgents } = result.issued
+        request.log.info({ agentId, arenaId, revokedAgents }, 'Token do agente gerado')
+        return reply.code(201).header('cache-control', 'no-store').send({ agentId, arenaId, token, revokedAgents })
     })
 
     app.get('/manager/metrics', {

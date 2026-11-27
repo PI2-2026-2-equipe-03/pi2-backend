@@ -17,6 +17,7 @@ A tabela abaixo relaciona os endpoints definidos no contrato da API com os requi
 | DELETE | `/replays/{id}` | RF-10 | Exclusão manual de vídeos |
 | POST | `/auth/forgot-password` | RF-11 | Solicitação de recuperação de senha |
 | POST | `/manager-requests` | RF-12 | Solicitação de cadastro como gestor de quadra |
+| POST | `/arenas/{id}/agent-token` | — | Geração do token do agente da arena (administrador) |
 
 Observação: o RF-08 define a exclusão automática dos vídeos após 7 dias. Como esse comportamento é executado internamente pelo sistema, ele não foi representado como um endpoint público específico neste contrato.
 
@@ -687,6 +688,91 @@ Status: `404 Not Found`
 }
 ```
 
+## Agente da arena
+
+Rotas usadas pelo agente local (`agent-node`) instalado em cada arena. Os dados usam campos em `snake_case`, e os erros seguem o formato padrão da API: `{ "error": { "code": "MIN_INTERVAL", "message": "..." } }`.
+
+**Autenticação:** `Authorization: Bearer <token do agente>`. O token é gerado por arena (`POST /arenas/{id}/agent-token` ou `npm run agent:token -- <id_arena>`) e guardado só como hash SHA-256. Token ausente, inválido ou inativo retorna `401`. Quadra, arena ou replay de outra arena retorna `403`.
+
+**Novas tentativas:** o agente repete indefinidamente respostas `409`, `429` e `5xx`; os demais `4xx` são definitivos. Por isso, violações de regra de negócio respondem `422`.
+
+| Método | Rota | Faz | Respostas |
+|---|---|---|---|
+| GET | `/api/agent/arenas/{id}/config` | Lista as quadras disponíveis da arena com a câmera ativa (`identificador` = canal do DVR) | `200`, `403`, `404` |
+| POST | `/api/agent/replays` | Cria o replay `pendente` com o horário do clique | `201` criado; `200` reenvio do mesmo clique; `400`; `403`; `404` quadra não encontrada; `422` quadra indisponível, intervalo de 30 s ou `pressed_at` fora da janela |
+| POST | `/api/agent/replays/{id}/upload-urls` | Gera URLs `PUT` pré-assinadas para o vídeo e a miniatura | `200`; `409` se não estiver `pendente` ou se expirou; `503` sem storage configurado |
+| POST | `/api/agent/replays/{id}/complete` | Confere o vídeo no R2, marca `disponivel` e grava metadados e log de gravação | `200` (idempotente); `409` vídeo ainda não chegou; `503` sem storage |
+| DELETE | `/api/agent/replays/{id}` | Descarta o replay `pendente` (falha no recorte) e registra a falha | `204`; `404` |
+
+### POST /arenas/{id}/agent-token
+
+Rota do app (sessão de **administrador**, `Authorization: Bearer <token da sessão>` ou cookie), não do agente. O `id` da arena é escolhido na lista de `GET /arenas`. Gera um novo token para o agente da arena e, na mesma transação, desativa os agentes ativos anteriores dela. Quem usava o token antigo passa a receber `401`.
+
+Sem corpo na entrada. Saída (`201`, com `Cache-Control: no-store`):
+
+```json
+{
+  "agentId": "UUID",
+  "arenaId": "UUID",
+  "token": "token opaco em base64url",
+  "revokedAgents": 1
+}
+```
+
+O `token` aparece só nesta resposta e deve ir para `agent_token` no `config.json` do agente. Erros: `400` com `id` inválido, `401` sem sessão, `403` com perfil diferente de administrador e `404` com arena inexistente.
+
+### GET /api/agent/arenas/{id}/config
+
+```json
+{
+  "arena": { "id_arena": "UUID", "nome": "Arena Exemplo" },
+  "quadras": [
+    { "id_quadra": "UUID", "nome": "Quadra 1", "camera": { "id_camera": "UUID", "identificador": "1" } },
+    { "id_quadra": "UUID", "nome": "Quadra 2", "camera": null }
+  ]
+}
+```
+
+### POST /api/agent/replays
+
+Entrada:
+
+```json
+{ "id_quadra": "UUID", "pressed_at": "2026-11-19T13:00:00.000Z" }
+```
+
+Aplica as mesmas regras do `POST /replays`: quadra disponível, intervalo de 30 s entre replays da quadra (comparando os horários dos cliques), cópia dos patrocinadores, duração de 30 s e expiração em 168 h a partir do clique. `pressed_at` não pode estar mais de 5 minutos no futuro nem ser mais antigo que a retenção.
+
+Saída (`201`):
+
+```json
+{
+  "id_replay": "UUID", "id_quadra": "UUID", "arquivo_url": null,
+  "data_geracao": "2026-11-19", "hora_geracao": "13:00:00",
+  "status": "pendente", "criado_em": "2026-11-19T13:00:00.000Z", "expira_em": "2026-11-26T13:00:00.000Z"
+}
+```
+
+### POST /api/agent/replays/{id}/upload-urls
+
+```json
+{
+  "expira_em_segundos": 600,
+  "video": { "key": "replays/<arena>/<quadra>/2026/11/19/<id>.mp4", "url": "https://...", "method": "PUT", "headers": { "Content-Type": "video/mp4" } },
+  "thumb": { "key": "replays/<arena>/<quadra>/2026/11/19/<id>.jpg", "url": "https://...", "method": "PUT", "headers": { "Content-Type": "image/jpeg" } }
+}
+```
+
+O agente envia os arquivos direto ao R2; o vídeo não passa pelo backend.
+
+### POST /api/agent/replays/{id}/complete
+
+Retorna o replay no mesmo formato da criação, com `status: "disponivel"` e `arquivo_url` com a **chave** do objeto (o bucket é privado; o app recebe URLs temporárias pelas rotas de replay).
+
+### DELETE /api/agent/replays/{id}
+
+Entrada opcional: `{ "reason": "descrição da falha" }` (mesmo campo do `DELETE /replays/{id}`). Marca o replay como `excluido` e grava `gravacao_log` com `resultado = 'falha'`.
+
 ## Códigos HTTP utilizados
 
 | Código | Significado |
@@ -698,8 +784,10 @@ Status: `404 Not Found`
 | 403 | Usuário autenticado, mas sem permissão |
 | 404 | Recurso não encontrado |
 | 409 | Conflito com um recurso já existente |
+| 422 | Regra de negócio violada |
 | 429 | Limite de tentativas excedido |
 | 500 | Erro interno do servidor |
+| 503 | Serviço dependente (e-mail ou armazenamento) não configurado |
 
 ## Observações
 

@@ -31,7 +31,7 @@ Os endpoints nativos `/api/auth/sign-up/email`, `/api/auth/sign-in/email`, `/api
 
 | RN | Implementação e evidência | Limite da garantia |
 | --- | --- | --- |
-| RN-01 | `replays.controller.ts`, `replay-retention.ts` e plugin de retenção: expiração de 168h; expirados não aparecem na busca/download; rotina na inicialização e a cada 24h; fila persistente de exclusão. Testes de expiração, falha do storage e reprocessamento. | Exclusão física depende do adaptador `MEDIA_DELETE_URL`. Sem ele, a fila permanece pendente, e o acesso pela API é negado. Links públicos já emitidos precisam de política de expiração no storage. |
+| RN-01 | `replays.controller.ts`, `replay-retention.ts` e plugin de retenção: expiração de 168h; expirados não aparecem na busca/download; rotina na inicialização e a cada 24h; fila persistente de exclusão. Testes de expiração, falha do storage e reprocessamento. | Exclusão física no R2 depende das variáveis `S3_*`. Sem elas, a fila permanece pendente, e o acesso pela API é negado. Os links emitidos pela API são temporários (`DOWNLOAD_URL_TTL_SECONDS`). |
 | RN-02 | Criação sempre registra `duracao_segundos=30`, recusa duração enviada pelo cliente e guarda data/horário/quadra. Restrição também no banco. | Buffer de câmera, geração de MP4 e captura dos 30 segundos anteriores pertencem ao serviço de captura, ausente neste repositório. Uma solicitação permanece `pendente` até processamento real. |
 | RN-03 | `auth.controller.ts` e `account-lockout.ts`: cinco falhas consecutivas por e-mail/IP, bloqueio de 15 min, verificação antes do hash, limpeza no sucesso. Lock transacional serializa tentativas. Testes verificam isolamento por IP. | `request.ip` é a origem confiável do Fastify; cabeçalhos enviados pelo cliente são sobrescritos antes do Better Auth. Instalações atrás de proxy devem configurar explicitamente a cadeia confiável, sem confiar indiscriminadamente em `X-Forwarded-For`. |
 | RN-04 | Exclusão apenas por gestor proprietário ou administrador. Mudança, fila e auditoria (identidade, replay, horário e motivo) na mesma transação. Usuário comum recebe 403. | Remoção do arquivo externo é assíncrona e confirmada pelo adaptador de storage. |
@@ -93,13 +93,9 @@ Para executar a rotina de retenção por cron, independentemente do processo web
 
 O serviço deve tratar a chave de idempotência e retornar 2xx ao aceitar a entrega. Tokens nunca são devolvidos pela API de recuperação, impressos nos logs ou incluídos em arquivos versionados.
 
-`MEDIA_DELETE_URL` deve apagar o objeto solicitado de forma idempotente e retornar 2xx **somente após confirmar a remoção** (objeto já ausente também é sucesso). `MEDIA_DELETE_TOKEN` é opcional. Payload:
+O adaptador de e-mail preserva TLS, recusa redirecionamentos e tem timeout de 5 segundos. HTTP sem TLS é permitido exclusivamente para loopback fora de produção. URLs e credenciais reais não acompanham este repositório.
 
-```json
-{ "replayId": "UUID", "objectUrl": "URL do objeto persistido", "reason": "Motivo da exclusão" }
-```
-
-Ambos os adaptadores preservam TLS, recusam redirecionamentos e têm timeout de 5 segundos. HTTP sem TLS é permitido exclusivamente para loopback fora de produção. URLs e credenciais reais não acompanham este repositório.
+A exclusão de mídia apaga o vídeo (`.mp4`) e a miniatura (`.jpg`) direto no bucket R2 (`S3_*`), a partir da chave guardada em `media_deletion_job.arquivo_url`. `DeleteObject` é idempotente (objeto ausente também é sucesso). Registros antigos com URL absoluta externa são concluídos sem chamada ao bucket. Falhas mantêm o job pendente, com nova tentativa em backoff exponencial.
 
 ## Validação reproduzível e evidências
 

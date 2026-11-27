@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Pool } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
@@ -16,17 +16,15 @@ const databaseName = `b302_test_${randomUUID().replaceAll('-', '')}`
 const databaseUrl = new URL(process.env.TEST_DATABASE_URL)
 databaseUrl.pathname = '/' + databaseName
 const deliveries: Array<{ to: string; token: string; expiresIn: number }> = []
-const mediaRequests: Array<{ replayId: string; objectUrl: string }> = []
-let storageUnavailable = false
 const mailReceiver = createServer(async (request, response) => {
     let body = ''
     for await (const chunk of request) body += chunk
-    if (request.url === '/delete-media') {
-        if (storageUnavailable) { response.writeHead(503).end(); return }
-        mediaRequests.push(JSON.parse(body))
-    } else deliveries.push(JSON.parse(body))
+    deliveries.push(JSON.parse(body))
     response.writeHead(204).end()
 })
+// Credenciais fictícias: as operações do storage são substituídas por vi.spyOn nos testes.
+const s3Env = { S3_ENDPOINT: 'https://r2.test.invalid', S3_BUCKET: 'replays-test', S3_ACCESS_KEY_ID: 'test', S3_SECRET_ACCESS_KEY: 'test' }
+const clearS3Env = () => { for (const key of Object.keys(s3Env)) delete process.env[key] }
 let app: FastifyInstance
 let db: Pool
 let closeAuth: () => Promise<void>
@@ -455,25 +453,35 @@ describe('B3-02 — rotas com PostgreSQL real, sem mock', () => {
         } finally { process.env.EMAIL_DELIVERY_URL = url }
     })
 
-    it('retenção e exclusão preservam objetos em fila e repetem entrega sem perder pendências', async () => {
+    it('retenção apaga vídeo e miniatura no storage, preserva a fila e repete após falha', async () => {
         const { expireReplays, deleteStoredMedia } = await import('../services/replay-retention.js')
+        const { storage } = await import('../services/storage.js')
         const deleted = (await db.query('SELECT arquivo_url FROM media_deletion_job WHERE id_replay=$1', [availableId])).rows[0]
         expect(deleted.arquivo_url).toBe('https://example.com/real-db-fixture.mp4')
         await expireReplays(db)
         expect((await db.query('SELECT status,arquivo_url FROM replay WHERE id_replay=$1', [expiredId])).rows[0]).toEqual({ status: 'excluido', arquivo_url: null })
         expect((await deleteStoredMedia(db)).configured).toBe(false)
-        const address = mailReceiver.address() as { port: number }
-        process.env.MEDIA_DELETE_URL = `http://127.0.0.1:${address.port}/delete-media`
-        storageUnavailable = true
-        await expect(deleteStoredMedia(db)).rejects.toThrow('storage')
-        expect((await db.query('SELECT 1 FROM media_deletion_job WHERE concluido_em IS NULL')).rowCount).toBeGreaterThan(0)
-        storageUnavailable = false
-        await db.query('UPDATE media_deletion_job SET proxima_tentativa_em=NULL')
-        const result = await deleteStoredMedia(db)
-        expect(result.completed).toBeGreaterThan(0)
-        expect(mediaRequests.some(job => job.replayId === availableId)).toBe(true)
-        expect((await db.query('SELECT 1 FROM media_deletion_job WHERE concluido_em IS NULL')).rowCount).toBe(0)
-        expect((await deleteStoredMedia(db)).completed).toBe(0)
+        // O replay expirado passa a apontar para uma chave do bucket; o disponível segue como URL externa (legado).
+        const key = `replays/${arenaId}/${courtId}/2026/01/01/${expiredId}.mp4`
+        await db.query('UPDATE media_deletion_job SET arquivo_url=$2 WHERE id_replay=$1', [expiredId, key])
+        Object.assign(process.env, s3Env)
+        const remove = vi.spyOn(storage, 'remove').mockRejectedValue(new Error('R2 indisponível'))
+        try {
+            await expect(deleteStoredMedia(db)).rejects.toThrow('storage')
+            expect((await db.query('SELECT 1 FROM media_deletion_job WHERE id_replay=$1 AND concluido_em IS NULL', [expiredId])).rowCount).toBe(1)
+            remove.mockResolvedValue(undefined)
+            await db.query('UPDATE media_deletion_job SET proxima_tentativa_em=NULL')
+            const result = await deleteStoredMedia(db)
+            expect(result.completed).toBeGreaterThan(0)
+            expect(remove).toHaveBeenCalledWith(key)
+            expect(remove).toHaveBeenCalledWith(key.replace(/\.mp4$/, '.jpg'))
+            expect(remove).not.toHaveBeenCalledWith('https://example.com/real-db-fixture.mp4')
+            expect((await db.query('SELECT 1 FROM media_deletion_job WHERE concluido_em IS NULL')).rowCount).toBe(0)
+            expect((await deleteStoredMedia(db)).completed).toBe(0)
+        } finally {
+            remove.mockRestore()
+            clearS3Env()
+        }
     })
 
         ; (process.env.POSTMAN_RUNNER ? it : it.skip)('executa a coleção Postman por HTTP real e grava relatório sem credenciais', async () => {
@@ -500,4 +508,149 @@ describe('B3-02 — rotas com PostgreSQL real, sem mock', () => {
             await writeFile('docs/evidencias/b302-postman-resultados.json', JSON.stringify(sanitized, null, 2) + '\n')
         }, 30000)
 
+})
+
+describe('Agente da arena — rotas /api/agent com storage simulado', () => {
+    let token: string
+    let otherToken: string
+    let inactiveToken: string
+    let agentCourtId: string
+    let cameraId: string
+    const agent = (value = token) => ({ authorization: `Bearer ${value}` })
+
+    beforeAll(async () => {
+        Object.assign(process.env, s3Env)
+        const { generateAgentToken, hashAgentToken } = await import('../lib/agent-token.js')
+        ;[token, otherToken, inactiveToken] = [generateAgentToken(), generateAgentToken(), generateAgentToken()]
+        const otherArenaId = (await db.query(`INSERT INTO arena(id_gestor,nome,cidade,endereco)
+      SELECT id_gestor,'Arena Vizinha','Fortaleza','Rua 2' FROM arena WHERE id_arena=$1 RETURNING id_arena`, [arenaId])).rows[0].id_arena
+        await db.query(`INSERT INTO agente(id_arena,token_hash,ativo) VALUES ($1,$2,true),($3,$4,true),($1,$5,false)`,
+            [arenaId, hashAgentToken(token), otherArenaId, hashAgentToken(otherToken), hashAgentToken(inactiveToken)])
+        agentCourtId = (await db.query(`INSERT INTO quadra(id_arena,nome) VALUES($1,'Quadra Agente') RETURNING id_quadra`, [arenaId])).rows[0].id_quadra
+        cameraId = (await db.query(`INSERT INTO camera(id_quadra,identificador) VALUES($1,'1') RETURNING id_camera`, [agentCourtId])).rows[0].id_camera
+    })
+
+    afterAll(() => {
+        vi.restoreAllMocks()
+        clearS3Env()
+    })
+
+    it('rejeita token ausente, inválido ou inativo com 401 no formato de erro padrão', async () => {
+        const url = `/api/agent/arenas/${arenaId}/config`
+        for (const headers of [{}, agent('token-invalido'), agent(inactiveToken)]) {
+            const response = await app.inject({ url, headers })
+            expect(response.statusCode).toBe(401)
+            expect(response.json().error.code).toBe('UNAUTHENTICATED')
+        }
+    })
+
+    it('config lista quadras disponíveis com a câmera ativa e bloqueia outra arena', async () => {
+        const response = await app.inject({ url: `/api/agent/arenas/${arenaId}/config`, headers: agent() })
+        expect(response.statusCode, response.body).toBe(200)
+        const body = response.json()
+        expect(body.arena).toEqual({ id_arena: arenaId, nome: 'Arena B302' })
+        expect(body.quadras.find((q: { id_quadra: string }) => q.id_quadra === agentCourtId).camera).toEqual({ id_camera: cameraId, identificador: '1' })
+        expect((await db.query('SELECT ultimo_contato_em FROM agente WHERE id_arena=$1 AND ativo', [arenaId])).rows[0].ultimo_contato_em).not.toBeNull()
+        expect((await app.inject({ url: `/api/agent/arenas/${arenaId}/config`, headers: agent(otherToken) })).statusCode).toBe(403)
+    })
+
+    it('fluxo criar → upload-urls → complete publica o replay e isola outras arenas', async () => {
+        const { storage } = await import('../services/storage.js')
+        vi.spyOn(storage, 'presignPut').mockImplementation(async (key: string, contentType: string) =>
+            ({ url: `https://r2.test.invalid/${key}?assinatura`, method: 'PUT' as const, headers: { 'Content-Type': contentType } }))
+        const exists = vi.spyOn(storage, 'exists').mockResolvedValue({ ok: false })
+        vi.spyOn(storage, 'presignGet').mockResolvedValue('https://r2.test.invalid/assinada')
+
+        const pressedAt = new Date(Date.now() - 5_000).toISOString()
+        const created = await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: agentCourtId, pressed_at: pressedAt } })
+        expect(created.statusCode, created.body).toBe(201)
+        const replay = created.json()
+        expect(replay.status).toBe('pendente')
+        expect(new Date(replay.criado_em).toISOString()).toBe(pressedAt)
+
+        // Reenvio do mesmo clique devolve o mesmo replay; outro clique dentro de 30 s é recusado com 422.
+        const retry = await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: agentCourtId, pressed_at: pressedAt } })
+        expect([retry.statusCode, retry.json().id_replay]).toEqual([200, replay.id_replay])
+        const tooSoon = await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: agentCourtId, pressed_at: new Date(Date.parse(pressedAt) + 10_000).toISOString() } })
+        expect(tooSoon.statusCode).toBe(422)
+        expect(tooSoon.json().error).toEqual({ code: 'MIN_INTERVAL', message: expect.any(String) })
+        expect((await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(otherToken), payload: { id_quadra: agentCourtId, pressed_at: pressedAt } })).statusCode).toBe(403)
+        expect((await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: randomUUID(), pressed_at: pressedAt } })).statusCode).toBe(404)
+
+        const urls = await app.inject({ method: 'POST', url: `/api/agent/replays/${replay.id_replay}/upload-urls`, headers: agent(), payload: {} })
+        expect(urls.statusCode, urls.body).toBe(200)
+        const { video, thumb, expira_em_segundos } = urls.json()
+        expect(expira_em_segundos).toBe(600)
+        expect(video.key).toMatch(new RegExp(`^replays/${arenaId}/${agentCourtId}/\\d{4}/\\d{2}/\\d{2}/${replay.id_replay}\\.mp4$`))
+        expect(thumb.key).toBe(video.key.replace(/\.mp4$/, '.jpg'))
+        expect(video).toMatchObject({ method: 'PUT', headers: { 'Content-Type': 'video/mp4' } })
+        expect((await app.inject({ method: 'POST', url: `/api/agent/replays/${replay.id_replay}/upload-urls`, headers: agent(otherToken), payload: {} })).statusCode).toBe(403)
+
+        // Vídeo ainda não chegou ao bucket: 409 para o agente tentar de novo.
+        expect((await app.inject({ method: 'POST', url: `/api/agent/replays/${replay.id_replay}/complete`, headers: agent(), payload: {} })).statusCode).toBe(409)
+        exists.mockResolvedValue({ ok: true, size: 4_000_000 })
+        const completed = await app.inject({ method: 'POST', url: `/api/agent/replays/${replay.id_replay}/complete`, headers: agent(), payload: {} })
+        expect(completed.statusCode, completed.body).toBe(200)
+        expect(completed.json()).toMatchObject({ status: 'disponivel', arquivo_url: video.key })
+        expect((await app.inject({ method: 'POST', url: `/api/agent/replays/${replay.id_replay}/complete`, headers: agent(), payload: {} })).statusCode).toBe(200)
+        expect((await app.inject({ method: 'POST', url: `/api/agent/replays/${replay.id_replay}/upload-urls`, headers: agent(), payload: {} })).statusCode).toBe(409)
+
+        const metadata = (await db.query('SELECT id_camera, tamanho_bytes::int AS size FROM replay_metadado WHERE id_replay=$1', [replay.id_replay])).rows[0]
+        expect(metadata).toEqual({ id_camera: cameraId, size: 4_000_000 })
+        const log = (await db.query('SELECT resultado, origem FROM gravacao_log WHERE id_replay=$1', [replay.id_replay])).rows
+        expect(log).toEqual([{ resultado: 'sucesso', origem: 'botoeira' }])
+
+        // O app recebe URL temporária em vez da chave do objeto (conta nova: sessões anteriores foram encerradas pela suíte).
+        const viewer = await account('espectador', '85977776666')
+        const detail = await app.inject({ url: `/replays/${replay.id_replay}`, headers: bearer(viewer.token) })
+        expect(detail.statusCode, detail.body).toBe(200)
+        expect(detail.json().data.videoUrl).toBe('https://r2.test.invalid/assinada')
+        const list = await app.inject({ url: `/replays?courtId=${agentCourtId}`, headers: bearer(viewer.token) })
+        expect(list.json().data.map((item: { downloadUrl: string }) => item.downloadUrl)).toEqual(['https://r2.test.invalid/assinada'])
+        const download = await app.inject({ url: `/replays/${replay.id_replay}/download`, headers: bearer(viewer.token) })
+        expect(download.json().data.downloadUrl).toBe('https://r2.test.invalid/assinada')
+    })
+
+    it('quadra indisponível retorna 422 e DELETE descarta o pendente registrando a falha', async () => {
+        const pressedAt = new Date(Date.now() - 120_000).toISOString()
+        await db.query('UPDATE quadra SET disponivel=false WHERE id_quadra=$1', [agentCourtId])
+        expect((await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: agentCourtId, pressed_at: pressedAt } })).statusCode).toBe(422)
+        await db.query('UPDATE quadra SET disponivel=true WHERE id_quadra=$1', [agentCourtId])
+
+        const created = await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: agentCourtId, pressed_at: pressedAt } })
+        expect(created.statusCode, created.body).toBe(201)
+        const id = created.json().id_replay
+        const discarded = await app.inject({ method: 'DELETE', url: `/api/agent/replays/${id}`, headers: agent(), payload: { reason: 'ffmpeg falhou' } })
+        expect(discarded.statusCode, discarded.body).toBe(204)
+        expect((await db.query('SELECT status FROM replay WHERE id_replay=$1', [id])).rows[0].status).toBe('excluido')
+        expect((await db.query('SELECT resultado, erro_mensagem FROM gravacao_log WHERE id_replay=$1', [id])).rows).toEqual([{ resultado: 'falha', erro_mensagem: 'ffmpeg falhou' }])
+        expect((await app.inject({ method: 'DELETE', url: `/api/agent/replays/${id}`, headers: agent() })).statusCode).toBe(404)
+    })
+
+    // Por último: a rotação desativa o token usado pelos testes anteriores.
+    it('ADM gera o token do agente pela rota e desativa os anteriores da arena', async () => {
+        const url = `/api/arenas/${arenaId}/agent-token`
+        expect((await app.inject({ method: 'POST', url })).statusCode).toBe(401)
+        // Conta nova: sessões anteriores foram encerradas pela suíte.
+        const operator = await account('operador', '85977775555')
+        expect((await app.inject({ method: 'POST', url, headers: bearer(operator.token) })).statusCode).toBe(403)
+        await db.query(`INSERT INTO administrador(id_usuario) SELECT id_usuario FROM usuario_auth WHERE id_auth=$1`, [operator.id])
+        expect((await app.inject({ method: 'POST', url: '/api/arenas/nao-e-uuid/agent-token', headers: bearer(operator.token) })).statusCode).toBe(400)
+        expect((await app.inject({ method: 'POST', url: `/api/arenas/${randomUUID()}/agent-token`, headers: bearer(operator.token) })).statusCode).toBe(404)
+
+        const issued = await app.inject({ method: 'POST', url, headers: bearer(operator.token) })
+        expect(issued.statusCode, issued.body).toBe(201)
+        expect(issued.headers['cache-control']).toBe('no-store')
+        const body = issued.json()
+        expect(body).toEqual({ agentId: expect.any(String), arenaId, token: expect.any(String), revokedAgents: 1 })
+        const { hashAgentToken } = await import('../lib/agent-token.js')
+        expect((await db.query('SELECT id_agente, ativo FROM agente WHERE token_hash=$1', [hashAgentToken(body.token)])).rows)
+            .toEqual([{ id_agente: body.agentId, ativo: true }])
+
+        // O token anterior deixa de valer, o novo já autentica e o agente da outra arena segue ativo.
+        const config = `/api/agent/arenas/${arenaId}/config`
+        expect((await app.inject({ url: config, headers: agent() })).statusCode).toBe(401)
+        expect((await app.inject({ url: config, headers: agent(body.token) })).statusCode).toBe(200)
+        expect((await app.inject({ url: config, headers: agent(otherToken) })).statusCode).toBe(403)
+    })
 })

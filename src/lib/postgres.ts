@@ -35,12 +35,15 @@ export function createPostgresPool(
     'db',
   ].includes(url.hostname)
 
+  // DB_SSL=false desliga o TLS para bancos sem certificado (ex.: Postgres do docker compose).
+  const sslDisabled = process.env.DB_SSL === 'false'
+
   const config: PoolConfig = {
     connectionString: url.toString(),
     max,
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 10000,
-    ssl: isLocal
+    ssl: isLocal || sslDisabled
       ? false
       : {
           ca: getSupabaseCA(),

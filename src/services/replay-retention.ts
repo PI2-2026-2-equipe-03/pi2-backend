@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
 import { expirarReplaysVencidos } from '../repositories/replay.repository.js'
+import { storage, thumbKeyOf, toObjectKey } from './storage.js'
 
 // A referência ao arquivo é preservada na fila até o storage confirmar a exclusão.
 export async function expireReplays(pool: Pool) {
@@ -7,16 +8,13 @@ export async function expireReplays(pool: Pool) {
 }
 
 export async function deleteStoredMedia(pool: Pool) {
-    if (!process.env.MEDIA_DELETE_URL) {
+    if (!storage.isConfigured()) {
         const { rows } = await pool.query('SELECT count(*)::int AS n FROM media_deletion_job WHERE concluido_em IS NULL')
 
-        if (rows[0].n) console.warn(`MEDIA_DELETE_URL ausente: ${rows[0].n} mídias pendentes de exclusão`)
+        if (rows[0].n) console.warn(`Armazenamento não configurado: ${rows[0].n} mídias pendentes de exclusão`)
 
         return { completed: 0, configured: false }
     }
-    const url = new URL(process.env.MEDIA_DELETE_URL)
-    const local = process.env.NODE_ENV !== 'production' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
-    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) throw new Error('MEDIA_DELETE_URL deve usar HTTPS')
     let completed = 0
     const failures: string[] = []
     for (let i = 0; i < 100; i++) {
@@ -28,13 +26,14 @@ export async function deleteStoredMedia(pool: Pool) {
         WHERE concluido_em IS NULL AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em <= now())
         ORDER BY criado_em,id_replay LIMIT 1 FOR UPDATE SKIP LOCKED`)).rows[0]
             if (!job) { await client.query('COMMIT'); break }
-            const response = await fetch(url, {
-                method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
-                headers: { 'content-type': 'application/json', ...(process.env.MEDIA_DELETE_TOKEN ? { authorization: `Bearer ${process.env.MEDIA_DELETE_TOKEN}` } : {}) },
-                body: JSON.stringify({ replayId: job.id_replay, objectUrl: job.arquivo_url, reason: job.motivo }),
-            })
-            if (!response.ok) { await response.body?.cancel(); throw new Error('O storage não confirmou a exclusão') }
-            await response.body?.cancel()
+            const key = toObjectKey(job.arquivo_url)
+            if (key) {
+                await storage.remove(key)
+                await storage.remove(thumbKeyOf(key))
+            } else {
+                // URL externa (legado): não há objeto no bucket deste backend para apagar.
+                console.warn(`Mídia fora do armazenamento ignorada na exclusão: replay ${job.id_replay}`)
+            }
             await client.query('UPDATE media_deletion_job SET concluido_em=now() WHERE id_replay=$1', [job.id_replay])
             await client.query('COMMIT')
             completed++
@@ -48,6 +47,6 @@ export async function deleteStoredMedia(pool: Pool) {
             failures.push(`${job.id_replay}: ${(error as Error).message}`)
         } finally { client.release() }
     }
-    if (failures.length) throw new Error(`${failures.length} exclusões falharam (${failures[0]})`)
+    if (failures.length) throw new Error(`${failures.length} exclusões no storage falharam (${failures[0]})`)
     return { completed, configured: true }
 }

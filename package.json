@@ -14,12 +14,15 @@
     "test:n-es": "vitest run tests/testesNaoEssenciais.test.js --reporter=verbose",
     "test:watch": "vitest",
     "db:expire": "tsx src/scripts/expire-replays.ts",
-    "db:seed": "tsx src/scripts/seed.ts"
+    "db:seed": "tsx src/scripts/seed.ts",
+    "agent:token": "tsx src/scripts/create-agent-token.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1172.0",
+    "@aws-sdk/s3-request-presigner": "^3.1172.0",
     "@fastify/cors": "^11.3.1",
     "@fastify/swagger": "^9.9.2",
     "@fastify/swagger-ui": "^6.1.2",
