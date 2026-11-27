@@ -1,10 +1,12 @@
 // Gera o token do agente de uma arena. Uso: npm run agent:token -- <id_arena>
 // O token é exibido uma única vez; guarde-o no config.json do agente.
+// Os agentes ativos anteriores da arena são desativados (mesma regra de POST /arenas/:id/agent-token).
 import { Pool } from 'pg'
-import { generateAgentToken, hashAgentToken } from '../lib/agent-token.js'
+import { uuid } from '../http/errors.js'
+import { issueAgentToken } from '../services/agent-token.js'
 
 const arenaId = process.argv[2]
-if (!arenaId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(arenaId)) {
+if (!arenaId || !uuid.safeParse(arenaId).success) {
   console.error('Uso: npm run agent:token -- <id_arena>')
   process.exit(1)
 }
@@ -14,17 +16,14 @@ if (!connectionString) throw new Error('Defina DATABASE_URL ou REPLAY_DATABASE_U
 const pool = new Pool({ connectionString })
 
 try {
-  const arena = await pool.query('SELECT nome FROM arena WHERE id_arena = $1', [arenaId])
-  if (!arena.rowCount) {
+  const result = await issueAgentToken(pool, arenaId)
+  if (!result.ok) {
     console.error(`Arena ${arenaId} não encontrada`)
     process.exitCode = 1
   } else {
-    const token = generateAgentToken()
-    const { rows } = await pool.query(
-      'INSERT INTO agente (id_arena, token_hash) VALUES ($1, $2) RETURNING id_agente',
-      [arenaId, hashAgentToken(token)],
-    )
-    console.log(`Agente ${rows[0].id_agente} criado para a arena "${arena.rows[0].nome}".`)
+    const { agentId, arenaName, token, revokedAgents } = result.issued
+    console.log(`Agente ${agentId} criado para a arena "${arenaName}".`)
+    if (revokedAgents) console.log(`${revokedAgents} agente(s) anterior(es) desativado(s).`)
     console.log('Token (exibido só agora; copie para agent_token no config.json do agente):')
     console.log(token)
   }

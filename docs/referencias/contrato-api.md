@@ -17,6 +17,7 @@ A tabela abaixo relaciona os endpoints definidos no contrato da API com os requi
 | DELETE | `/replays/{id}` | RF-10 | Exclusão manual de vídeos |
 | POST | `/auth/forgot-password` | RF-11 | Solicitação de recuperação de senha |
 | POST | `/manager-requests` | RF-12 | Solicitação de cadastro como gestor de quadra |
+| POST | `/arenas/{id}/agent-token` | — | Geração do token do agente da arena (administrador) |
 
 Observação: o RF-08 define a exclusão automática dos vídeos após 7 dias. Como esse comportamento é executado internamente pelo sistema, ele não foi representado como um endpoint público específico neste contrato.
 
@@ -691,7 +692,7 @@ Status: `404 Not Found`
 
 Rotas usadas pelo agente local (`agent-node`) instalado em cada arena. Os dados usam campos em `snake_case`, e os erros seguem o formato padrão da API: `{ "error": { "code": "MIN_INTERVAL", "message": "..." } }`.
 
-**Autenticação:** `Authorization: Bearer <token do agente>`. O token é gerado por arena (`npm run agent:token -- <id_arena>`) e guardado só como hash SHA-256. Token ausente, inválido ou inativo retorna `401`. Quadra, arena ou replay de outra arena retorna `403`.
+**Autenticação:** `Authorization: Bearer <token do agente>`. O token é gerado por arena (`POST /arenas/{id}/agent-token` ou `npm run agent:token -- <id_arena>`) e guardado só como hash SHA-256. Token ausente, inválido ou inativo retorna `401`. Quadra, arena ou replay de outra arena retorna `403`.
 
 **Novas tentativas:** o agente repete indefinidamente respostas `409`, `429` e `5xx`; os demais `4xx` são definitivos. Por isso, violações de regra de negócio respondem `422`.
 
@@ -702,6 +703,23 @@ Rotas usadas pelo agente local (`agent-node`) instalado em cada arena. Os dados 
 | POST | `/api/agent/replays/{id}/upload-urls` | Gera URLs `PUT` pré-assinadas para o vídeo e a miniatura | `200`; `409` se não estiver `pendente` ou se expirou; `503` sem storage configurado |
 | POST | `/api/agent/replays/{id}/complete` | Confere o vídeo no R2, marca `disponivel` e grava metadados e log de gravação | `200` (idempotente); `409` vídeo ainda não chegou; `503` sem storage |
 | DELETE | `/api/agent/replays/{id}` | Descarta o replay `pendente` (falha no recorte) e registra a falha | `204`; `404` |
+
+### POST /arenas/{id}/agent-token
+
+Rota do app (sessão de **administrador**, `Authorization: Bearer <token da sessão>` ou cookie), não do agente. O `id` da arena é escolhido na lista de `GET /arenas`. Gera um novo token para o agente da arena e, na mesma transação, desativa os agentes ativos anteriores dela. Quem usava o token antigo passa a receber `401`.
+
+Sem corpo na entrada. Saída (`201`, com `Cache-Control: no-store`):
+
+```json
+{
+  "agentId": "UUID",
+  "arenaId": "UUID",
+  "token": "token opaco em base64url",
+  "revokedAgents": 1
+}
+```
+
+O `token` aparece só nesta resposta e deve ir para `agent_token` no `config.json` do agente. Erros: `400` com `id` inválido, `401` sem sessão, `403` com perfil diferente de administrador e `404` com arena inexistente.
 
 ### GET /api/agent/arenas/{id}/config
 

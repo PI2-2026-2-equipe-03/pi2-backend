@@ -50,6 +50,13 @@ export const arenaSchema = z.object({
   endereco: z.string(),
   fotoUrl: z.string().nullable(),
 })
+export const arenaParamsSchema = z.object({ id })
+export const agentTokenResponseSchema = z.object({
+  agentId: id,
+  arenaId: id,
+  token: z.string(),
+  revokedAgents: z.number(),
+})
 export const arenasQuerySchema = z.object({
   cidade: z.string().optional(),
   q: z.string().optional(),

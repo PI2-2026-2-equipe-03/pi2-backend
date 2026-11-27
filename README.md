@@ -65,11 +65,14 @@ O bucket precisa de uma regra de CORS só se algum navegador fizer upload direto
 
 ### Agente da arena
 
-Cada arena roda o `agent-node`, que grava as câmeras e envia os clipes pelas rotas `/api/agent/*` (contrato em [contrato-api.md](docs/referencias/contrato-api.md#agente-da-arena)). Para gerar o token de uma arena (exibido uma única vez; só o hash SHA-256 fica no banco):
+Cada arena roda o `agent-node`, que grava as câmeras e envia os clipes pelas rotas `/api/agent/*` (contrato em [contrato-api.md](docs/referencias/contrato-api.md#agente-da-arena)). O token de uma arena é exibido uma única vez (só o hash SHA-256 fica no banco). Gerar um novo token desativa os anteriores da mesma arena. Há duas formas de gerá-lo:
+
+- pelo app, com sessão de administrador: `POST /arenas/{id}/agent-token` (o `id` vem de `GET /arenas`);
+- pelo terminal:
 
 ```bash
 npm run agent:token -- <id_arena>
 # com Docker: docker compose exec backend npm run agent:token -- <id_arena>
 ```
 
-Para revogar, marque `agente.ativo = false`. Em banco existente, aplique `src/db/init/013_agente.sql` uma única vez.
+Para revogar sem gerar outro, marque `agente.ativo = false`. Em banco existente, aplique `src/db/init/013_agente.sql` uma única vez.

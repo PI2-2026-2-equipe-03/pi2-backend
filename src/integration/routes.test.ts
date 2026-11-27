@@ -628,4 +628,31 @@ describe('Agente da arena — rotas /api/agent com storage simulado', () => {
         expect((await db.query('SELECT resultado, erro_mensagem FROM gravacao_log WHERE id_replay=$1', [id])).rows).toEqual([{ resultado: 'falha', erro_mensagem: 'ffmpeg falhou' }])
         expect((await app.inject({ method: 'DELETE', url: `/api/agent/replays/${id}`, headers: agent() })).statusCode).toBe(404)
     })
+
+    // Por último: a rotação desativa o token usado pelos testes anteriores.
+    it('ADM gera o token do agente pela rota e desativa os anteriores da arena', async () => {
+        const url = `/arenas/${arenaId}/agent-token`
+        expect((await app.inject({ method: 'POST', url })).statusCode).toBe(401)
+        // Conta nova: sessões anteriores foram encerradas pela suíte.
+        const operator = await account('operador', '85977775555')
+        expect((await app.inject({ method: 'POST', url, headers: bearer(operator.token) })).statusCode).toBe(403)
+        await db.query(`INSERT INTO administrador(id_usuario) SELECT id_usuario FROM usuario_auth WHERE id_auth=$1`, [operator.id])
+        expect((await app.inject({ method: 'POST', url: '/arenas/nao-e-uuid/agent-token', headers: bearer(operator.token) })).statusCode).toBe(400)
+        expect((await app.inject({ method: 'POST', url: `/arenas/${randomUUID()}/agent-token`, headers: bearer(operator.token) })).statusCode).toBe(404)
+
+        const issued = await app.inject({ method: 'POST', url, headers: bearer(operator.token) })
+        expect(issued.statusCode, issued.body).toBe(201)
+        expect(issued.headers['cache-control']).toBe('no-store')
+        const body = issued.json()
+        expect(body).toEqual({ agentId: expect.any(String), arenaId, token: expect.any(String), revokedAgents: 1 })
+        const { hashAgentToken } = await import('../lib/agent-token.js')
+        expect((await db.query('SELECT id_agente, ativo FROM agente WHERE token_hash=$1', [hashAgentToken(body.token)])).rows)
+            .toEqual([{ id_agente: body.agentId, ativo: true }])
+
+        // O token anterior deixa de valer, o novo já autentica e o agente da outra arena segue ativo.
+        const config = `/api/agent/arenas/${arenaId}/config`
+        expect((await app.inject({ url: config, headers: agent() })).statusCode).toBe(401)
+        expect((await app.inject({ url: config, headers: agent(body.token) })).statusCode).toBe(200)
+        expect((await app.inject({ url: config, headers: agent(otherToken) })).statusCode).toBe(403)
+    })
 })
