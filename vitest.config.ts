@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config'
 
-// Testes unitários: rodam sem banco nem API no ar. E2E: vitest.e2e.config.ts; integração: vitest.integration.config.ts.
+// Testes unitários: rodam sem banco nem API no ar. Testes de API: vitest.api.config.ts; integração: vitest.integration.config.ts.
 export default defineConfig({
   test: {
     include: ['src/tests/**/*.test.ts'],
