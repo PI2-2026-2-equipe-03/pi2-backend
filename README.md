@@ -4,7 +4,19 @@ API REST para replays de quadras esportivas. Stack atual: Fastify 5, TypeScript,
 
 ## Desenvolvimento
 
-Requisitos: Node.js 22+ e PostgreSQL 16+. Copie `.env.example` para `.env` e ajuste as conexões e uma chave de autenticação segura. O backend atual usa PostgreSQL; não há fluxo SQLite/Prisma.
+Requisitos: Node.js 22+ e PostgreSQL 16+. O backend atual usa PostgreSQL; não há fluxo SQLite/Prisma.
+
+### Variáveis de ambiente
+
+Copie `.env.example` para `.env` e preencha `BETTER_AUTH_SECRET`. O [`.env.example`](.env.example) é a **referência única**: cada variável indica se é obrigatória, o valor sugerido e em que ambiente é usada (compose, execução nativa ou deploy no Render).
+
+Como o `.env` é usado em cada ambiente:
+
+| Ambiente | Origem das variáveis |
+|---|---|
+| Dev no Docker (`docker compose up`) | `environment` do `docker-compose.yml`. O `.env` só alimenta a interpolação do compose, que falha se faltar uma obrigatória, e não é carregado dentro do container. |
+| Dev fora do Docker (`npm run dev`) | `.env`, carregado pelo script. |
+| Produção (stage `runner`, Render) | Plataforma ou `environment`. O `.env` não entra na imagem (`.dockerignore`) e não é carregado. |
 
 ```bash
 npm ci
@@ -23,17 +35,18 @@ Um único `Dockerfile` multi-stage (`dev` e `runner`) atende os dois ambientes:
 - **Desenvolvimento:** `docker compose up --build` carrega `docker-compose.yml` + `docker-compose.override.yml` (stage `dev`, hot reload com bind mount, porta do Postgres publicada e seed aplicado).
 - **Produção:** `docker compose -f docker-compose.yml up -d --build` ignora o override (stage `runner`, sem bind mount, banco sem porta publicada e sem seed).
 
-`POSTGRES_PASSWORD` e `BETTER_AUTH_SECRET` são obrigatórios no `.env`. As migrações e o seed só rodam quando o volume do banco está vazio; para reinicializá-lo, `docker compose down -v` apaga o volume e **todos os dados**.
+Se faltar uma variável obrigatória no `.env`, o `docker compose up` falha antes de subir os containers. As migrações e o seed só rodam quando o volume do banco está vazio; para reinicializá-lo, `docker compose down -v` apaga o volume e **todos os dados**.
 
-Sem Docker, com o banco já inicializado:
+Sem Docker para o backend, usando o banco do compose (publicado em `POSTGRES_PORT`):
 
 ```bash
-node --env-file=.env --import tsx src/server.ts
-# Watch mode:
-node --env-file=.env --import tsx --watch src/server.ts
+docker compose up -d db
+npm run dev   # watch mode; carrega o .env
 ```
 
-`npm start` e `npm run dev` também funcionam com variáveis injetadas pelo ambiente. A porta vem de `PORT` (padrão 3000); o compose usa `BACKEND_PORT` para publicar a porta. Health check: `GET /api/health`.
+`docker compose up -d db` sobe só o Postgres, com migrações e seed num volume novo. Mesmo assim, o compose valida o arquivo inteiro, então as obrigatórias do backend também precisam estar no `.env`. A rede `pi2-net` é externa: crie-a uma vez com `docker network create pi2-net`. Com um Postgres local, aponte o `DATABASE_URL` para ele e aplique as migrações de `src/db/init/` manualmente.
+
+`npm start` não carrega o `.env`: usa só as variáveis do ambiente, como no Render. Health check: `GET /api/health`.
 
 Em volume/banco existente, aplique as novas migrações uma única vez. Consulte a [documentação B3-02](docs/regras-de-negocio-implementadas.md) para comandos, oito rotas, payloads, regras, códigos HTTP e limites das integrações de vídeo/e-mail.
 
@@ -55,24 +68,17 @@ Importe a [coleção Postman](docs/postman/b302.postman_collection.json) para te
 
 A autenticação nativa Better Auth em `/api/auth/*` permanece disponível, além de `/auth/register` e `/auth/login`. Novos cadastros exigem telefone e senha forte. Replays novos ficam pendentes até um serviço real de captura/processamento fornecer a mídia. Marca d'água e buffer de câmera dependem desse serviço.
 
-Recuperação exige `EMAIL_DELIVERY_URL` (HTTPS; token opcional `EMAIL_DELIVERY_TOKEN`). Detalhes e payloads estão no documento B3-02.
+Recuperação exige `EMAIL_DELIVERY_URL` (ver `.env.example`). Detalhes e payloads estão no documento B3-02.
 
 ### Armazenamento de vídeos (Cloudflare R2)
 
 Os vídeos ficam num bucket R2 **privado**. O banco guarda só a chave do objeto (`replays/<arena>/<quadra>/<AAAA>/<MM>/<DD>/<replay>.mp4`), e `GET /replays`, `GET /replays/:id` e `/download` devolvem URLs temporárias.
 
-| Variável | Uso |
-|---|---|
-| `S3_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
-| `S3_REGION` | `auto` (padrão) |
-| `S3_BUCKET` | Nome do bucket |
-| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Credenciais S3 de um token de API do R2 com permissão *Object Read & Write* restrita a este bucket |
-| `UPLOAD_URL_TTL_SECONDS` | Validade das URLs de upload do agente (padrão 600) |
-| `DOWNLOAD_URL_TTL_SECONDS` | Validade dos links de vídeo do app (padrão 3600) |
+As variáveis `S3_*` estão descritas no `.env.example`. As credenciais vêm de um token de API do R2 com permissão *Object Read & Write* restrita a este bucket.
 
 Ao criar o token (R2 → *Manage API tokens*), a Cloudflare exibe uma única vez o valor do token, o *Access Key ID* e o *Secret Access Key*. A API S3 usa só os dois últimos; o valor do token serve para a API REST da Cloudflare e não é configurado aqui. Restringir o token ao bucket limita o impacto de um vazamento das credenciais.
 
-No Docker Compose, essas variáveis são repassadas do `.env` ao serviço `backend`. Sem elas, as rotas de upload do agente respondem `503` e a fila de exclusão (`media_deletion_job`) fica pendente até o storage ser configurado.
+Sem as variáveis `S3_*`, as rotas de upload do agente respondem `503` e a fila de exclusão (`media_deletion_job`) fica pendente até o storage ser configurado.
 
 O bucket precisa de uma regra de CORS só se algum navegador fizer upload direto; o agente (Node) não precisa.
 

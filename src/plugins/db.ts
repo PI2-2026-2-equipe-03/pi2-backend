@@ -13,8 +13,7 @@ declare module 'fastify' {
 export default fp(async (fastify: FastifyInstance) => {
   fastify.log.info('[DB] Iniciando plugin')
 
-  const connectionString =
-    process.env.REPLAY_DATABASE_URL ?? process.env.DATABASE_URL
+  const connectionString = process.env.DATABASE_URL
 
   if (!connectionString) {
     throw new Error('DATABASE_URL não definida')

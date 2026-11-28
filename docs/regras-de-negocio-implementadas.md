@@ -76,10 +76,10 @@ Com as variáveis de `.env.example` preenchidas para o banco correto:
 
 ```bash
 npm ci
-node --env-file=.env --import tsx src/server.ts
+npm run dev
 ```
 
-As variáveis também podem ser injetadas pelo ambiente (`npm start`). `.env` não é carregado implicitamente pelo script antigo. Ajuste `PORT`, não apenas `BACKEND_PORT`, para execução fora do compose.
+`npm run dev` carrega o `.env`; `npm start` usa só as variáveis do ambiente. A referência completa é o [`.env.example`](../.env.example).
 
 Para executar a rotina de retenção por cron, independentemente do processo web, injete as variáveis e rode diariamente `npm run db:expire`. A rotina é idempotente; múltiplos workers usam `SKIP LOCKED`. Se o storage falhar, o job não recebe confirmação e será tentado novamente. A API nunca transforma registro pendente em disponível artificialmente.
 

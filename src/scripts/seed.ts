@@ -1,8 +1,8 @@
 import { Pool } from 'pg'
 import { hashPassword } from 'better-auth/crypto'
 
-const connectionString = process.env.AUTH_DATABASE_URL ?? process.env.DATABASE_URL
-if (!connectionString) throw new Error('Defina AUTH_DATABASE_URL ou DATABASE_URL')
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) throw new Error('Defina DATABASE_URL')
 
 const users = [
     { role: 'ADM', name: 'Administrador Teste', email: 'adm@tagravado.test', phone: '85900000001', password: 'Adm@Tagravado2026' },
