@@ -54,13 +54,7 @@ export async function arenasController(app: FastifyInstance) {
         },
     },
         async (request, reply) => {
-            const { cidade, q } = parse(
-                z.object({
-                    cidade: z.string().trim().max(100).optional(),
-                    q: z.string().trim().max(150).optional(),
-                }).strict(),
-                request.query
-            );
+            const { cidade, q } = parse(arenasQuerySchema, request.query)
 
             const cidadeFiltro = cidade?.trim() || null;
             const nomeFiltro = q?.trim() || null;
@@ -98,7 +92,7 @@ export async function arenasController(app: FastifyInstance) {
     r.get("/arenas/:id", {
         ...docOnly,
         schema: {
-            tags: ["arenas"], summary: "Consultar arena", params: z.object({ id: z.guid() }),
+            tags: ["arenas"], summary: "Consultar arena", pparams: paramsSchema,
             response: { 200: data(arenaSchema), 400: errorSchema, 404: errorSchema }
         },
     }, async request => {
@@ -134,7 +128,7 @@ export async function arenasController(app: FastifyInstance) {
     r.patch("/arenas/:id", {
         ...docOnly, preHandler: [requireAuth, requireRole("CLI", "ADM")],
         schema: {
-            tags: ["arenas"], summary: "Editar arena", security, params: z.object({ id: z.guid() }),
+            tags: ["arenas"], summary: "Editar arena", security, params: paramsSchema,
             body: arenaUpdateBodySchema, response: { 200: data(arenaSchema), ...erros }
         },
     }, async request => {
@@ -165,7 +159,7 @@ export async function arenasController(app: FastifyInstance) {
     r.delete("/arenas/:id", {
         ...docOnly, preHandler: [requireAuth, requireRole("CLI", "ADM")],
         schema: {
-            tags: ["arenas"], summary: "Excluir arena", security, params: z.object({ id: z.guid() }),
+            tags: ["arenas"], summary: "Excluir arena", security, params: paramsSchema,
             response: { 200: messageSchema, ...erros }
         },
     }, async request => {

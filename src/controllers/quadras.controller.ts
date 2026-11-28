@@ -39,10 +39,7 @@ export async function quadrasController(app: FastifyInstance) {
             },
         },
         async (request, reply) => {
-            const { arenaId, disponivel } = parse(
-                z.object({ arenaId: uuid.optional(), disponivel: z.enum(["true", "false"]).optional() }).strict(),
-                request.query
-            );
+            const { arenaId, disponivel } = parse(quadrasQuerySchema, request.query)
 
             const filtroArena = arenaId ?? null;
             const filtroDisponivel =
@@ -79,7 +76,7 @@ export async function quadrasController(app: FastifyInstance) {
     r.get("/courts/:id", {
         ...docOnly,
         schema: {
-            tags: ["quadras"], summary: "Consultar quadra", params: z.object({ id: z.guid() }),
+            tags: ["quadras"], summary: "Consultar quadra", params: replayParams,
             response: { 200: data(quadraSchema), 400: errorSchema, 404: errorSchema }
         },
     }, async request => {
@@ -110,7 +107,7 @@ export async function quadrasController(app: FastifyInstance) {
     r.patch("/courts/:id", {
         ...docOnly, preHandler: [requireAuth, requireRole("CLI", "ADM")],
         schema: {
-            tags: ["quadras"], summary: "Editar quadra", security, params: z.object({ id: z.guid() }), body: quadraUpdateBodySchema,
+            tags: ["quadras"], summary: "Editar quadra", security, params: replayParams, body: quadraUpdateBodySchema,
             response: { 200: data(quadraSchema), 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema }
         },
     }, async request => {
@@ -131,7 +128,7 @@ export async function quadrasController(app: FastifyInstance) {
     r.delete("/courts/:id", {
         ...docOnly, preHandler: [requireAuth, requireRole("CLI", "ADM")],
         schema: {
-            tags: ["quadras"], summary: "Excluir quadra", security, params: z.object({ id: z.guid() }),
+            tags: ["quadras"], summary: "Excluir quadra", security, params: replayParams,
             response: { 200: messageSchema, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema }
         },
     }, async request => {

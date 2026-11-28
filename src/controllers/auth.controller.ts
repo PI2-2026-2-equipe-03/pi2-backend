@@ -181,9 +181,20 @@ export async function authController(app: FastifyInstance) {
     })
 
     r.post('/auth/sign-out', {
-        ...docOnly,
-        schema: { tags: ['auth'], summary: 'Logout', security: cookie, response: { 200: z.object({ success: z.boolean() }) } },
-    }, (request, reply) => handleAuth(request, reply))
+    ...docOnly,
+    schema: {
+        tags: ['auth'],
+        summary: 'Logout',
+        security: cookie,
+        response: {
+            200: z.object({
+                success: z.boolean(),
+                url: z.string().optional(),
+                redirect: z.boolean().optional(),
+            }),
+        },
+    },
+}, (request, reply) => handleAuth(request, reply))
 
     r.get('/auth/get-session', {
         ...docOnly,

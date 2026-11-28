@@ -26,7 +26,7 @@ const permissao = `
   EXISTS(SELECT 1 FROM usuario_auth ua JOIN administrador ad ON ad.id_usuario = ua.id_usuario WHERE ua.id_auth = $2) AS admin`;
 const FROM = `camera c JOIN quadra q ON q.id_quadra = c.id_quadra JOIN arena a ON a.id_arena = q.id_arena`;
 const erros = { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema };
-const idParams = z.object({ id: z.guid() });
+const idParams = replayParams;
 const pre = { preHandler: [requireAuth, requireRole("CLI", "ADM")] };
 
 export async function camerasController(app: FastifyInstance) {
@@ -45,7 +45,7 @@ export async function camerasController(app: FastifyInstance) {
         schema: { tags: ["cameras"], summary: "Listar câmeras", security, querystring: camerasQuerySchema,
             response: { 200: data(z.array(cameraSchema)), ...erros } },
     }, async request => {
-        const { quadraId, status: st } = parse(querySchema, request.query);
+        const { quadraId, status: st } = parse(camerasQuerySchema, request.query);
         const result = await app.pg.query(
             `SELECT ${COLS} FROM ${FROM}
              WHERE ($1::uuid IS NULL OR c.id_quadra = $1) AND ($2::text IS NULL OR c.status = $2)
@@ -72,7 +72,7 @@ export async function camerasController(app: FastifyInstance) {
         schema: { tags: ["cameras"], summary: "Cadastrar câmera", security, body: cameraCreateBodySchema,
             response: { 201: data(cameraSchema), ...erros } },
     }, async (request, reply) => {
-        const { quadraId, identificador, status: st } = parse(createSchema, request.body);
+        const { quadraId, identificador, status: st } = parse(cameraCreateBodySchema, request.body);
         const found = await app.pg.query(
             `SELECT ${permissao} FROM quadra q JOIN arena a ON a.id_arena = q.id_arena WHERE q.id_quadra = $1`,
             [quadraId, request.authUser!.id]);
@@ -92,7 +92,7 @@ export async function camerasController(app: FastifyInstance) {
             response: { 200: data(cameraSchema), ...erros } },
     }, async request => {
         const { id } = parse(replayParams, request.params);
-        const body = parse(updateSchema, request.body);
+        const body = parse(cameraUpdateBodySchema, request.body);
         await carregar(id, request.authUser!.id);
         const result = await app.pg.query(
             `UPDATE camera c SET identificador = COALESCE($2, identificador), status = COALESCE($3, status)

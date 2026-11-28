@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-const id = z.guid()
+const id = z.string().regex(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    'Informe um UUID válido',
+)
 
 export const errorSchema = z.object({
     error: z.object({ code: z.string().optional(), message: z.string() }),
@@ -33,24 +36,39 @@ export const replayDownloadSchema = z.object({
     format: z.literal('MP4'),
 })
 
-export const replayCreateBodySchema = z.object({ courtId: id })
-export const replayDeleteBodySchema = z.object({ reason: z.string().min(3).max(500) })
+export const replayCreateBodySchema = z.object({
+    courtId: id,
+}).strict()
+
+export const replayDeleteBodySchema = z.object({
+    reason: z.string().trim().min(3).max(500),
+}).strict()
+
 export const replayFiltersSchema = z.object({
     courtId: id.optional(),
-    city: z.string().optional(),
+    city: z.string().trim().max(100).optional(),
     date: z.iso.date().optional(),
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
-})
+}).strict()
 
 const cameraStatus = z.enum(['ativa', 'inativa', 'manutencao'])
 export const cameraSchema = z.object({ id, quadraId: id, identificador: z.string(), status: cameraStatus })
-export const camerasQuerySchema = z.object({ quadraId: id.optional(), status: cameraStatus.optional() })
+export const camerasQuerySchema = z.object({
+    quadraId: id.optional(),
+    status: cameraStatus.optional(),
+}).strict()
 export const cameraCreateBodySchema = z.object({
-    quadraId: id, identificador: z.string().min(1).max(100), status: cameraStatus.optional(),
-})
+    quadraId: id,
+    identificador: z.string().trim().min(1).max(100),
+    status: cameraStatus.optional(),
+}).strict()
 export const cameraUpdateBodySchema = z.object({
-    identificador: z.string().min(1).max(100).optional(), status: cameraStatus.optional(),
-})
+    identificador: z.string().trim().min(1).max(100).optional(),
+    status: cameraStatus.optional(),
+}).strict().refine(
+    v => Object.keys(v).length > 0,
+    'Informe ao menos um campo'
+)
 
 export const arenaSchema = z.object({
     id,
@@ -68,22 +86,25 @@ export const agentTokenResponseSchema = z.object({
   revokedAgents: z.number(),
 })
 export const arenasQuerySchema = z.object({
-    cidade: z.string().optional(),
-    q: z.string().optional(),
-})
+    cidade: z.string().trim().max(100).optional(),
+    q: z.string().trim().max(150).optional(),
+}).strict()
 export const arenaCreateBodySchema = z.object({
-    nome: z.string().min(2).max(150),
-    cidade: z.string().min(2).max(100),
-    endereco: z.string().min(2).max(255),
-    fotoUrl: z.string().max(500).nullable().optional(),
+    nome: z.string().trim().min(2).max(150),
+    cidade: z.string().trim().min(2).max(100),
+    endereco: z.string().trim().min(2).max(255),
+    fotoUrl: z.string().trim().max(500).nullable().optional(),
     clienteId: id.optional(),
-})
+}).strict()
 export const arenaUpdateBodySchema = z.object({
-    nome: z.string().min(2).max(150).optional(),
-    cidade: z.string().min(2).max(100).optional(),
-    endereco: z.string().min(2).max(255).optional(),
-    fotoUrl: z.string().max(500).nullable().optional(),
-})
+    nome: z.string().trim().min(2).max(150).optional(),
+    cidade: z.string().trim().min(2).max(100).optional(),
+    endereco: z.string().trim().min(2).max(255).optional(),
+    fotoUrl: z.string().trim().max(500).nullable().optional(),
+}).strict().refine(
+    b => Object.keys(b).length > 0,
+    'Informe ao menos um campo'
+)
 
 export const quadraSchema = z.object({
     id,
@@ -94,13 +115,18 @@ export const quadraSchema = z.object({
 export const quadrasQuerySchema = z.object({
     arenaId: id.optional(),
     disponivel: z.enum(['true', 'false']).optional(),
-})
+}).strict()
 export const quadraCreateBodySchema = z.object({
-    arenaId: id, nome: z.string().min(1).max(100)
-})
+    arenaId: id,
+    nome: z.string().trim().min(1).max(100),
+}).strict()
 export const quadraUpdateBodySchema = z.object({
-    nome: z.string().min(1).max(100).optional(), disponivel: z.boolean().optional()
-})
+    nome: z.string().trim().min(1).max(100).optional(),
+    disponivel: z.boolean().optional(),
+}).strict().refine(
+    v => Object.keys(v).length > 0,
+    'Informe ao menos um campo'
+)
 
 export const authUserSchema = z.object({
     id,
@@ -122,16 +148,31 @@ export const currentUserSchema = z.object({
 })
 
 export const registerBodySchema = z.object({
-    name: z.string(),
+    name: z.string().min(2).max(150),
     email: z.email(),
-    phone: z.string(),
-    password: z.string(),
+    phone: z.string().describe(
+        'Telefone com 10 a 15 dígitos após remover espaços, parênteses, +, pontos e hífens',
+    ),
+    password: z.string()
+        .min(8)
+        .max(72)
+        .regex(/[A-Z]/, 'Deve conter letra maiúscula')
+        .regex(/[a-z]/, 'Deve conter letra minúscula')
+        .regex(/[0-9]/, 'Deve conter número')
+        .regex(/[^A-Za-z0-9\s]/, 'Deve conter caractere especial'),
     confirmPassword: z.string().optional(),
-})
+    image: z.url().optional(),
+    callbackURL: z.string().optional(),
+    rememberMe: z.boolean().optional(),
+}).strict()
+
 export const loginBodySchema = z.object({
     email: z.email(),
-    password: z.string(),
-})
+    password: z.string().min(1).max(128),
+    rememberMe: z.boolean().optional(),
+    callbackURL: z.string().optional(),
+}).strict()
+
 export const loginResponseSchema = z.object({
     token: z.string(),
     expiresIn: z.number(),
@@ -139,12 +180,22 @@ export const loginResponseSchema = z.object({
 })
 
 export const sponsorBodySchema = z.object({
-    name: z.string().min(2).max(150),
-    imageUrl: z.string().max(500),
+    name: z.string().trim().min(2, 'Informe o nome do patrocinador').max(150),
+    imageUrl: z.string().max(500).refine(
+        value => /^\/uploads\/[A-Za-z0-9/_.-]+$/.test(value)
+            || z.url({ protocol: /^https?$/ }).safeParse(value).success,
+        'Informe uma URL HTTP(S) ou caminho /uploads/ válido',
+    ),
     duration: z.number().int().positive().max(30),
-    value: z.number().nonnegative(),
-    courtIds: z.array(id).min(1).max(100),
-})
+    value: z.number().nonnegative().max(99999999.99).refine(
+        value => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001,
+        'Use no máximo duas casas decimais',
+    ),
+    courtIds: z.array(id).min(1, 'Selecione ao menos uma quadra').max(100).refine(
+        ids => new Set(ids).size === ids.length,
+        'Não repita quadras',
+    ),
+}).strict()
 export const sponsorResponseSchema = z.object({
     id,
     name: z.string(),
@@ -154,18 +205,31 @@ export const sponsorResponseSchema = z.object({
     courtIds: z.array(id),
 })
 export const sponsorUpdateBodySchema = sponsorBodySchema.partial()
+    .strict()
+    .refine(v => Object.keys(v).length > 0, 'Informe ao menos um campo')
 
 export const adminMetricsSchema = z.object({
-    activeUsers: z.number(),
-    totalCourts: z.number(),
-    totalReplays: z.number(),
-    mostAccessedCourts: z.array(z.object({ courtId: id, name: z.string(), accesses: z.number() })),
+    activeUsers: z.number().int(),
+    totalCourts: z.number().int(),
+    totalReplays: z.number().int(),
+    mostAccessedCourts: z.array(z.object({
+        courtId: id,
+        name: z.string(),
+        accesses: z.number().int(),
+    })),
 })
 export const managerMetricsSchema = z.object({
-    totalReplays: z.number(),
-    totalSponsors: z.number(),
-    peakHours: z.array(z.object({ hour: z.string(), accesses: z.number() })),
-    courts: z.array(z.object({ id, name: z.string(), replays: z.number() })),
+    totalReplays: z.number().int(),
+    totalSponsors: z.number().int(),
+    peakHours: z.array(z.object({
+        hour: z.string(),
+        accesses: z.number().int(),
+    })),
+    courts: z.array(z.object({
+        id,
+        name: z.string(),
+        replays: z.number().int(),
+    })),
 })
 export const managerRequestsQuerySchema = z.object({
     status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
@@ -173,7 +237,7 @@ export const managerRequestsQuerySchema = z.object({
 
 export const managerRequestListItemSchema = z.object({
     id: z.number().int(),
-    user: z.object({ id: z.guid(), name: z.string(), email: z.string() }),
+    user: z.object({ id, name: z.string(), email: z.string() }),
     cpf: z.string(),
     cnpj: z.string().nullable(),
     companyName: z.string(),
@@ -188,15 +252,27 @@ export const managerRequestListItemSchema = z.object({
     status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
     createdAt: z.iso.datetime(),
     reviewedAt: z.iso.datetime().nullable(),
-    reviewedBy: z.guid().nullable(),
+    reviewedBy: id.nullable(),
 })
 
-export const forgotPasswordBodySchema = z.object({ email: z.email() })
+export const forgotPasswordBodySchema = z.object({
+    email: z.email(),
+}).strict()
+
 export const resetPasswordBodySchema = z.object({
-    token: z.string(),
-    password: z.string(),
+    token: z.string().regex(
+        /^[0-9a-f-]{36}\.\d{6}$/i,
+        'Informe o token recebido por e-mail',
+    ),
+    password: z.string()
+        .min(8)
+        .max(72)
+        .regex(/[A-Z]/, 'Deve conter letra maiúscula')
+        .regex(/[a-z]/, 'Deve conter letra minúscula')
+        .regex(/[0-9]/, 'Deve conter número')
+        .regex(/[^A-Za-z0-9\s]/, 'Deve conter caractere especial'),
     passwordConfirmation: z.string(),
-})
+}).strict()
 export const replayDetailSchema = z.object({
     id,
     court: z.object({
@@ -235,7 +311,7 @@ export const managerRequestStatusSchema = z.object({
 
 export const managerRequestResponseSchema = z.object({
     id: z.number().int(),
-    userId: z.guid(),
+    userId: id,
     status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
     message: z.string(),
 })

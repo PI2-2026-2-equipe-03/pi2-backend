@@ -7,18 +7,10 @@ import { HttpError, parse, uuid } from '../http/errors.js'
 import { docOnly } from '../schemas/doc-only.js'
 import { data, errorSchema, messageSchema, sponsorResponseSchema, sponsorUpdateBodySchema, sponsorBodySchema } from '../schemas/api.js'
 
-const sponsorSchema = z.object({
-    name: z.string().trim().min(2, 'Informe o nome do patrocinador').max(150),
-    imageUrl: z.string().max(500).refine(value => /^\/uploads\/[A-Za-z0-9/_.-]+$/.test(value) || z.url({ protocol: /^https?$/ }).safeParse(value).success, 'Informe uma URL HTTP(S) ou caminho /uploads/ válido'),
-    duration: z.number().int().positive().max(30),
-    value: z.number().nonnegative().max(99999999.99).refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, 'Use no máximo duas casas decimais'),
-    courtIds: z.array(uuid).min(1, 'Selecione ao menos uma quadra').max(100).refine(ids => new Set(ids).size === ids.length, 'Não repita quadras'),
-}).strict()
+
 
 const security: { [key: string]: string[] }[] = [{ bearerAuth: [] }, { cookieAuth: [] }]
 const paramsSchema = z.object({ id: uuid })
-const updateSchema = sponsorSchema.partial().strict()
-    .refine(v => Object.keys(v).length > 0, 'Informe ao menos um campo')
 
 const COLS = `p.id_patrocinador AS id, p.nome AS name, p.foto_url AS "imageUrl", p.duracao AS duration,
   p.valor::float8 AS value,
@@ -57,7 +49,7 @@ export async function sponsorsController(app: FastifyInstance) {
         ...pre,
         schema: {
             tags: ['sponsors'], summary: 'Consultar patrocinador', security,
-            params: z.object({ id: z.guid() }), response: { 200: sponsorResponseSchema, ...erros }
+            params: paramsSchema, response: { 200: sponsorResponseSchema, ...erros }
         },
     }, async request => {
         const { id } = parse(paramsSchema, request.params)
@@ -77,7 +69,7 @@ export async function sponsorsController(app: FastifyInstance) {
             response: { 201: sponsorResponseSchema, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
         },
     }, async (request, reply) => {
-        const data = parse(sponsorSchema, request.body)
+        const data = parse(sponsorBodySchema, request.body)
         const client = await app.pg.connect()
         try {
             await client.query('BEGIN')
@@ -102,12 +94,12 @@ export async function sponsorsController(app: FastifyInstance) {
         ...pre,
         schema: {
             tags: ['sponsors'], summary: 'Editar patrocinador', security,
-            params: z.object({ id: z.guid() }), body: sponsorUpdateBodySchema,
+            params: paramsSchema, body: sponsorUpdateBodySchema,
             response: { 200: sponsorResponseSchema, ...erros }
         },
     }, async request => {
         const { id } = parse(paramsSchema, request.params)
-        const body = parse(updateSchema, request.body)
+        const body = parse(sponsorUpdateBodySchema, request.body)
         const me = await quemSou(app, request.authUser!.id)
         const client = await app.pg.connect()
         try {
@@ -142,7 +134,7 @@ export async function sponsorsController(app: FastifyInstance) {
         ...pre,
         schema: {
             tags: ['sponsors'], summary: 'Excluir patrocinador', security,
-            params: z.object({ id: z.guid() }), response: { 200: messageSchema, ...erros }
+            params: paramsSchema, response: { 200: messageSchema, ...erros }
         },
     }, async request => {
         const { id } = parse(paramsSchema, request.params)

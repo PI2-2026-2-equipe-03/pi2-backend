@@ -7,7 +7,7 @@ export default fp(async (app) => {
   await app.register(swagger, {
     openapi: {
       openapi: '3.1.0',
-      info: { title: 'TaGravado API', version: '1.0.0' },
+      info: { title: 'Repeteco API', version: '1.0.0' },
       tags: [
         { name: 'auth', description: 'Autenticação (Better Auth)' },
         { name: 'replays', description: 'Replays das quadras' },

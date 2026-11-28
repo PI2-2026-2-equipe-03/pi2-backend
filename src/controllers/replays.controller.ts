@@ -81,7 +81,7 @@ export async function replaysController(app: FastifyInstance) {
             tags: ['replays'],
             summary: 'Consultar detalhes de um replay',
             security,
-            params: z.object({ id: z.guid() }),
+            params: replayParams,
             response: {
                 200: data(replayDetailSchema),
                 400: errorSchema,
@@ -136,7 +136,7 @@ export async function replaysController(app: FastifyInstance) {
         ...docOnly, preHandler: requireAuth,
         schema: {
             tags: ['replays'], summary: 'Obter link de download', security,
-            params: z.object({ id: z.guid() }),
+            params: replayParams,
             response: { 200: data(replayDownloadSchema), 400: errorSchema, 401: errorSchema, 404: errorSchema, 422: errorSchema },
         },
     }, async request => {
@@ -156,7 +156,7 @@ export async function replaysController(app: FastifyInstance) {
         ...docOnly,  preHandler: [requireAuth, requireRole('CLI', 'ADM')],
         schema: {
             tags: ['replays'], summary: 'Excluir replay', security,
-            params: z.object({ id: z.guid() }),
+            params: replayParams,
             body: replayDeleteBodySchema,
             response: { 200: messageSchema, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema },
         },
