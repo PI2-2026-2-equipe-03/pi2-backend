@@ -187,18 +187,16 @@ Depois, edite o arquivo `.env` e configure as conexões com o PostgreSQL, a chav
 
 Entre as variáveis importantes estão:
 
-- `DATABASE_URL`: conexão principal com o PostgreSQL.
-- `AUTH_DATABASE_URL`: conexão utilizada pela autenticação.
-- `REPLAY_DATABASE_URL`: conexão utilizada pelas operações de replay.
+- `DATABASE_URL`: conexão única com o PostgreSQL (API, autenticação e scripts).
 - `BETTER_AUTH_SECRET`: chave secreta da autenticação.
 - `BETTER_AUTH_URL`: endereço base da autenticação.
-- `TRUSTED_ORIGINS` e `CORS_ORIGINS`: origens permitidas.
+- `CORS_ORIGINS`: origens permitidas pelo CORS e pelo Better Auth.
 - `PORT`: porta de execução do backend.
 - `CRON_SECRET`: proteção do endpoint de manutenção agendada.
 - Variáveis `S3_*`: configuração do armazenamento compatível com S3.
 - `EMAIL_DELIVERY_URL`: endereço do serviço de envio de e-mails.
 
-As variáveis obrigatórias dependem dos recursos que serão utilizados. Consulte o `.env.example` e a implementação correspondente.
+O `.env.example` é a referência única: indica, para cada variável, se é obrigatória, o valor sugerido e o ambiente de uso.
 
 **Importante:** nunca publique o arquivo `.env`, suas credenciais ou chaves secretas no GitHub. O arquivo `.env.example` deve conter apenas exemplos e valores não sensíveis.
 
@@ -277,7 +275,7 @@ docker compose down -v
 
 **Cuidado:** a opção `-v` apaga o volume e todos os dados armazenados nele. Não utilize esse comando em um ambiente com dados que precisam ser preservados.
 
-As variáveis `POSTGRES_PASSWORD` e `BETTER_AUTH_SECRET` devem estar configuradas no `.env`.
+O contêiner recebe apenas as variáveis declaradas no `environment` do `docker-compose.yml`; o `.env` só alimenta essa declaração. Se faltar uma variável obrigatória no `.env`, o `docker compose up` falha antes de subir os contêineres.
 
 ## 9. Execução sem Docker
 
@@ -289,9 +287,9 @@ Após configurar o `.env` e preparar o banco:
 npm run dev
 ```
 
-Esse comando inicia o backend em modo de desenvolvimento, com monitoramento de alterações.
+Esse comando carrega o `.env` e inicia o backend em modo de desenvolvimento, com monitoramento de alterações.
 
-Para iniciar normalmente:
+Para iniciar normalmente, com as variáveis já definidas no ambiente (o `.env` não é carregado):
 
 ```bash
 npm start
