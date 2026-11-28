@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Definir a arquitetura do servidor local de cada arena (o **agente de replay**, repositório `pi2-replay-agent`) e a forma como ele conversa com o **pi2-backend**. O agente grava as câmeras continuamente e, a cada clique do botão da quadra, entrega à nuvem um vídeo já recortado. O vídeo fica no armazenamento (Cloudflare R2) e é registrado no banco seguindo as regras de negócio.
+Definir a arquitetura do servidor local de cada arena (o **agente de replay**, repositório público [`pi2-replay-agent`](https://github.com/PI2-2026-2-equipe-03/pi2-replay-agent)) e a forma como ele conversa com o **pi2-backend**. O agente grava as câmeras continuamente e, a cada clique do botão da quadra, entrega à nuvem um vídeo já recortado. O vídeo fica no armazenamento (Cloudflare R2) e é registrado no banco seguindo as regras de negócio.
 
 ## Por que um agente local
 
@@ -28,7 +28,7 @@ O replay são os **30 segundos anteriores** ao clique. Para isso, as câmeras pr
 | D6 | Armazenamento **privado**: o banco guarda a chave do objeto, e o app recebe URL temporária | Os vídeos não ficam públicos no bucket |
 | D7 | Um **token por arena**, guardado no banco só como hash SHA-256 | Um agente não acessa dados de outra arena, e o token vazado é revogado sem afetar as demais |
 | D8 | O botão (ESP32) fala com o agente por HTTP na rede local, sem autenticação | Simplicidade no firmware; a rede da arena não é exposta à internet |
-| D9 | As regras de criação do replay ficam num único serviço do backend, usado pelo app e pelo agente | Intervalo de 30 s, quadra disponível, patrocinadores e expiração iguais nos dois caminhos |
+| D9 | As regras de criação do replay ficam num único serviço do backend, usado pelo app e pelo agente | Intervalo de 10 s por quadra, quadra disponível, patrocinadores e expiração iguais nos dois caminhos |
 
 ## Componentes
 
@@ -116,7 +116,7 @@ Respostas de `POST /api/replay`:
 |---|---|
 | `202` | Clique aceito; o recorte e o envio seguem em segundo plano |
 | `404` | Quadra desconhecida |
-| `429` | Clique repetido dentro de `debounce_seconds` (30 s, igual ao intervalo do backend) |
+| `429` | Clique repetido na mesma quadra dentro de `debounce_seconds` (10 s, igual ao intervalo do backend) |
 | `503` | Agente ainda iniciando ou sem configuração |
 | `405` | Método diferente de `POST` |
 
@@ -129,7 +129,7 @@ Todas exigem `Authorization: Bearer <token da arena>` e conferem se a quadra ou 
 | Rota | Faz | Respostas |
 |---|---|---|
 | `GET /api/agent/arenas/:id/config` | Lista as quadras disponíveis da arena com a câmera ativa | `200 { arena, quadras[{ id_quadra, nome, camera{ id_camera, identificador } }] }` |
-| `POST /api/agent/replays` `{ id_quadra, pressed_at }` | Cria o replay `pendente` com o horário do clique | `201` criado; `200` se já existia para o mesmo clique (idempotente); `400` corpo inválido; `404`; `422` para quadra indisponível, intervalo de 30 s ou `pressed_at` fora do prazo |
+| `POST /api/agent/replays` `{ id_quadra, pressed_at }` | Cria o replay `pendente` com o horário do clique | `201` criado; `200` se já existia para o mesmo clique (idempotente); `400` corpo inválido; `404`; `422` para quadra indisponível, intervalo de 10 s ou `pressed_at` fora do prazo |
 | `POST /api/agent/replays/:id/upload-urls` | Gera as URLs PUT do vídeo e da miniatura | `200 { expira_em_segundos, video{ key,url,method,headers }, thumb{…} }`; `409` se não estiver `pendente` ou se tiver expirado |
 | `POST /api/agent/replays/:id/complete` | Confere o vídeo no R2, marca como `disponivel` e grava `replay_metadado` e `gravacao_log` (sucesso) | `200` (idempotente); `409` se o vídeo ainda não chegou |
 | `DELETE /api/agent/replays/:id` `{ reason? }` | Descarta o replay `pendente` e grava `gravacao_log` (falha) | `204`; `404` |
@@ -138,7 +138,7 @@ Regras de `POST /api/agent/replays`:
 
 - `pressed_at` com mais de 5 min no futuro é recusado. O relógio do PC precisa estar sincronizado (NTP).
 - `pressed_at` mais antigo que 168 h é recusado, porque o replay já nasceria vencido.
-- Valem as mesmas regras do `POST /replays` do app: quadra existente e disponível, intervalo de 30 s por quadra, cópia dos patrocinadores, `duracao_segundos = 30` e expiração de 168 h a partir do clique.
+- Valem as mesmas regras do `POST /replays` do app: quadra existente e disponível, intervalo de 10 s por quadra, cópia dos patrocinadores, `duracao_segundos = 30` e expiração de 168 h a partir do clique.
 
 **Erros e novas tentativas:** os erros seguem o formato padrão da API, `{ "error": { "code", "message" } }`. O agente repete indefinidamente `408`, `409`, `429`, `5xx` e falhas de rede, com espera crescente até 120 s. Os outros `4xx` são definitivos: o replay local vai para `erro` e, se já existir no backend, o agente chama o `DELETE`.
 
@@ -196,14 +196,14 @@ Regras de `POST /api/agent/replays`:
   "id_arena": "<id_arena>",
   "dvr_rtsp_template": "rtsp://<usuario>:<senha>@192.168.1.20:554/cam/realmonitor?channel={canal}&subtype=0",
   "listen_port": 8080,
-  "debounce_seconds": 30,
+  "debounce_seconds": 10,
   "latency_compensation_seconds": 1,
   "test_overlay": false,
   "keep_local_clips": false
 }
 ```
 
-- `debounce_seconds` deve ser igual ao intervalo mínimo do backend (30 s). Um valor menor faz o botão receber `202` para um clique que o backend vai recusar.
+- `debounce_seconds` deve ser igual ao intervalo mínimo do backend (10 s). Um valor menor faz o botão receber `202` para um clique que o backend vai recusar.
 - No banco, `camera.identificador` recebe o **número do canal** do DVR (`"1"`, `"2"`…). Para testes sem DVR, use `test` ou `file:<caminho>`.
 - A senha do DVR fica só no PC da arena.
 - O agente só lê as quadras e câmeras ao iniciar. Depois de cadastrar ou alterar uma quadra ou câmera, reinicie a tarefa.
@@ -247,7 +247,7 @@ Os logs da instalação ficam em `C:\ProgramData\Repeteco\logs\`. Os do agente f
 
 - O agente roda em segundo plano, sobe no boot sem login e volta sozinho se cair.
 - Um clique no ESP32 gera um replay `disponivel` em menos de 10 s, com 30 s de vídeo do momento certo.
-- O replay respeita o intervalo de 30 s e a quadra disponível, e copia os patrocinadores.
+- O replay respeita o intervalo de 10 s por quadra e a quadra disponível, e copia os patrocinadores.
 - Um agente com token de uma arena não acessa quadras ou replays de outra.
 - Com a internet desligada, os cliques ficam na fila e são enviados quando a conexão volta.
 - Na expiração, o arquivo some do R2 e o replay fica `excluido`.
@@ -260,3 +260,4 @@ Os logs da instalação ficam em `C:\ProgramData\Repeteco\logs\`. Os do agente f
 - **Configuração lida só no início:** quadras ou câmeras novas exigem reiniciar a tarefa.
 - **API local sem autenticação:** aceitável na rede local, mas vale isolar o PC e os botões numa VLAN. A API local responde com `access-control-allow-origin: *`, então qualquer página aberta num navegador da rede consegue disparar cliques.
 - **`install.ps1`:** ainda não foi testado num Windows 11 com o Controle Inteligente de Aplicativos ativo.
+- **Envio sequencial:** o agente recorta em paralelo, mas envia um replay por vez. Com várias quadras acionadas ao mesmo tempo, os últimos da fila podem passar da meta de 10 s até ficarem `disponivel`.
