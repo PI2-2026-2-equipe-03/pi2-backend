@@ -1,7 +1,7 @@
 import type { Pool } from 'pg'
 
 // Regras de criação compartilhadas entre o app (POST /replays) e o agente da arena.
-export const REPLAY_INTERVAL_SECONDS = 30
+export const REPLAY_INTERVAL_SECONDS = 10
 
 export const REPLAY_FIELDS = `r.id_replay AS id, r.id_quadra AS "courtId", r.arquivo_url AS "downloadUrl",
   r.data_geracao::text AS "recordingDate", r.hora_geracao AS "recordingTime",

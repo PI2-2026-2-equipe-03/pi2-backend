@@ -9,7 +9,7 @@ import {
     data, errorSchema, messageSchema, replayCreateBodySchema, replayDeleteBodySchema, replayDetailSchema,
     replayDownloadSchema, replayFiltersSchema, replayListItemSchema, replaySchema,
 } from '../schemas/api.js'
-import { createReplay, REPLAY_FIELDS as fields } from '../services/replay-creation.js'
+import { createReplay, REPLAY_FIELDS as fields, REPLAY_INTERVAL_SECONDS } from '../services/replay-creation.js'
 import { toMediaUrl } from '../services/storage.js'
 
 const createSchema = z.object({ courtId: uuid }).strict()
@@ -46,7 +46,7 @@ export async function replaysController(app: FastifyInstance) {
                 case 'court_not_found': throw new HttpError(404, 'Quadra não encontrada')
                 case 'forbidden': throw new HttpError(403, 'Você não tem permissão para gerenciar esta quadra')
                 case 'court_unavailable': throw new HttpError(422, 'Quadra indisponível para gerar replay')
-                case 'min_interval': throw new HttpError(409, 'Aguarde 30 segundos entre solicitações de replay')
+                case 'min_interval': throw new HttpError(409, `Aguarde ${REPLAY_INTERVAL_SECONDS} segundos entre solicitações de replay`)
             }
         }
         return reply.code(201).send({ data: result.replay })

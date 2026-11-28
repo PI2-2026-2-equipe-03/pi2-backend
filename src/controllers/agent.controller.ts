@@ -9,7 +9,7 @@ import type { Db } from '../repositories/errors.js'
 import { registrarGravacao } from '../repositories/recording-log.repository.js'
 import { salvarMetadados } from '../repositories/replay-metadata.repository.js'
 import { marcarReplayDisponivel } from '../repositories/replay.repository.js'
-import { createReplay, type CreatedReplay } from '../services/replay-creation.js'
+import { createReplay, REPLAY_INTERVAL_SECONDS, type CreatedReplay } from '../services/replay-creation.js'
 import { replayObjectKeys, storage, uploadUrlTtlSeconds } from '../services/storage.js'
 
 const CLOCK_SKEW_MS = 5 * 60_000
@@ -122,7 +122,7 @@ export async function agentController(app: FastifyInstance) {
         case 'court_not_found': throw new HttpError(404, 'Quadra não encontrada', 'NOT_FOUND')
         case 'forbidden': throw new HttpError(403, 'Quadra pertence a outra arena', 'FORBIDDEN')
         case 'court_unavailable': throw new HttpError(422, 'Quadra indisponível para gerar replay', 'COURT_UNAVAILABLE')
-        case 'min_interval': throw new HttpError(422, 'Intervalo mínimo de 30 segundos entre replays da quadra', 'MIN_INTERVAL')
+        case 'min_interval': throw new HttpError(422, `Intervalo mínimo de ${REPLAY_INTERVAL_SECONDS} segundos entre replays da quadra`, 'MIN_INTERVAL')
       }
     }
     return reply.code(result.created ? 201 : 200).send(toAgentReplay(result.replay))

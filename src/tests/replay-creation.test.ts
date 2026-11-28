@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
-import { createReplay } from '../services/replay-creation.js'
+import { createReplay, REPLAY_INTERVAL_SECONDS } from '../services/replay-creation.js'
 
 const ARENA = '11111111-1111-1111-1111-111111111111'
 const QUADRA = '33333333-3333-3333-3333-333333333333'
@@ -49,14 +49,14 @@ describe('createReplay', () => {
     expect(await createReplay(pool, { courtId: QUADRA, canAccess: mesmaArena })).toEqual({ ok: false, reason: 'court_unavailable' })
   })
 
-  it('respeita o intervalo de 30 s e não insere o replay', async () => {
+  it('respeita o intervalo mínimo entre replays da quadra e não insere o replay', async () => {
     const { pool, query, comandos } = criarPool({ quadra: quadraDisponivel, recente: true })
     expect(await createReplay(pool, { courtId: QUADRA, canAccess: mesmaArena })).toEqual({ ok: false, reason: 'min_interval' })
     expect(comandos()).toContain('ROLLBACK')
     expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO replay'))).toBe(false)
   })
 
-  it('cria com o horário do clique, 30 s de intervalo e cópia dos patrocinadores', async () => {
+  it('cria com o horário do clique, o intervalo mínimo e cópia dos patrocinadores', async () => {
     const { pool, query, comandos } = criarPool({ quadra: quadraDisponivel })
     const pressedAt = new Date('2026-11-19T13:00:00.000Z')
 
@@ -64,7 +64,7 @@ describe('createReplay', () => {
 
     expect(result).toMatchObject({ ok: true, created: true, replay: { id: 'novo' } })
     const intervalo = query.mock.calls.find(([sql]) => sql.includes('SELECT 1 FROM replay'))!
-    expect(intervalo[1]).toEqual([QUADRA, pressedAt.toISOString(), 30])
+    expect(intervalo[1]).toEqual([QUADRA, pressedAt.toISOString(), REPLAY_INTERVAL_SECONDS])
     const insert = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO replay'))!
     expect(insert[1]).toEqual([QUADRA, JSON.stringify([{ id: 'p1', name: 'Patrocínio', imageUrl: null }]), pressedAt.toISOString()])
     expect(insert[0]).toContain("INTERVAL '168 hours'")

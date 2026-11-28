@@ -84,7 +84,7 @@ RN-07 \- Validade do Código de recuperação de senha
 
 RN-08 \- Visualização e download de vídeos apenas por usuários cadastrados
 
-* **Descrição:** Um cliente só conseguirá gravar os últimos 30 segundos em quadra, apertando o botão, se já tiverem passado 30 segundos da última vez que o botão foi acionado, para evitar replays duplicados ou sobrepostos.   
+* **Descrição:** Um cliente só conseguirá gravar os últimos 30 segundos em quadra, apertando o botão, se já tiverem passado 10 segundos da última vez que o botão daquela quadra foi acionado, para evitar replays duplicados ou sobrepostos.   
 * **Política Operacional:**   
 1. Usuário cria email e senha  
 2. Após o login ela consegue visualizar e baixar os vídeo   

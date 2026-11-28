@@ -699,7 +699,7 @@ Rotas usadas pelo agente local (`agent-node`) instalado em cada arena. Os dados 
 | Método | Rota | Faz | Respostas |
 |---|---|---|---|
 | GET | `/api/agent/arenas/{id}/config` | Lista as quadras disponíveis da arena com a câmera ativa (`identificador` = canal do DVR) | `200`, `403`, `404` |
-| POST | `/api/agent/replays` | Cria o replay `pendente` com o horário do clique | `201` criado; `200` reenvio do mesmo clique; `400`; `403`; `404` quadra não encontrada; `422` quadra indisponível, intervalo de 30 s ou `pressed_at` fora da janela |
+| POST | `/api/agent/replays` | Cria o replay `pendente` com o horário do clique | `201` criado; `200` reenvio do mesmo clique; `400`; `403`; `404` quadra não encontrada; `422` quadra indisponível, intervalo de 10 s ou `pressed_at` fora da janela |
 | POST | `/api/agent/replays/{id}/upload-urls` | Gera URLs `PUT` pré-assinadas para o vídeo e a miniatura | `200`; `409` se não estiver `pendente` ou se expirou; `503` sem storage configurado |
 | POST | `/api/agent/replays/{id}/complete` | Confere o vídeo no R2, marca `disponivel` e grava metadados e log de gravação | `200` (idempotente); `409` vídeo ainda não chegou; `503` sem storage |
 | DELETE | `/api/agent/replays/{id}` | Descarta o replay `pendente` (falha no recorte) e registra a falha | `204`; `404` |
@@ -741,7 +741,7 @@ Entrada:
 { "id_quadra": "UUID", "pressed_at": "2026-11-19T13:00:00.000Z" }
 ```
 
-Aplica as mesmas regras do `POST /replays`: quadra disponível, intervalo de 30 s entre replays da quadra (comparando os horários dos cliques), cópia dos patrocinadores, duração de 30 s e expiração em 168 h a partir do clique. `pressed_at` não pode estar mais de 5 minutos no futuro nem ser mais antigo que a retenção.
+Aplica as mesmas regras do `POST /replays`: quadra disponível, intervalo de 10 s entre replays da quadra (comparando os horários dos cliques), cópia dos patrocinadores, duração de 30 s e expiração em 168 h a partir do clique. `pressed_at` não pode estar mais de 5 minutos no futuro nem ser mais antigo que a retenção.
 
 Saída (`201`):
 

@@ -572,10 +572,10 @@ describe('Agente da arena — rotas /api/agent com storage simulado', () => {
         expect(replay.status).toBe('pendente')
         expect(new Date(replay.criado_em).toISOString()).toBe(pressedAt)
 
-        // Reenvio do mesmo clique devolve o mesmo replay; outro clique dentro de 30 s é recusado com 422.
+        // Reenvio do mesmo clique devolve o mesmo replay; outro clique dentro do intervalo mínimo (10 s) é recusado com 422.
         const retry = await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: agentCourtId, pressed_at: pressedAt } })
         expect([retry.statusCode, retry.json().id_replay]).toEqual([200, replay.id_replay])
-        const tooSoon = await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: agentCourtId, pressed_at: new Date(Date.parse(pressedAt) + 10_000).toISOString() } })
+        const tooSoon = await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(), payload: { id_quadra: agentCourtId, pressed_at: new Date(Date.parse(pressedAt) + 5_000).toISOString() } })
         expect(tooSoon.statusCode).toBe(422)
         expect(tooSoon.json().error).toEqual({ code: 'MIN_INTERVAL', message: expect.any(String) })
         expect((await app.inject({ method: 'POST', url: '/api/agent/replays', headers: agent(otherToken), payload: { id_quadra: agentCourtId, pressed_at: pressedAt } })).statusCode).toBe(403)
