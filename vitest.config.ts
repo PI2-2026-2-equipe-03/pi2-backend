@@ -13,7 +13,7 @@ export default defineConfig({
     },
     // URL fictícia: lib/auth.ts a exige na importação, mas o pg só conecta na primeira consulta e os testes usam pg falso.
     env: {
-      AUTH_DATABASE_URL: 'postgresql://unit-test@127.0.0.1:1/unit-test',
+      DATABASE_URL: 'postgresql://unit-test@127.0.0.1:1/unit-test',
     },
   },
 })

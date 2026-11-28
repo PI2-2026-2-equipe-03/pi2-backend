@@ -5,19 +5,19 @@ import { createPostgresPool } from './postgres.js'
 import { strongPassword } from '../http/errors.js'
 import { hashPassword, verifyPassword } from './password.js'
 
-if (!process.env.AUTH_DATABASE_URL) throw new Error('AUTH_DATABASE_URL não configurada')
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL não configurada')
 export const authPool = createPostgresPool(
-  process.env.AUTH_DATABASE_URL,
+  process.env.DATABASE_URL,
   Number(process.env.AUTH_DB_POOL_MAX ?? 2),
 )
 // Locks não ocupam conexões usadas pelo handler Better Auth.
 export const authLockPool = createPostgresPool(
-  process.env.AUTH_DATABASE_URL,
+  process.env.DATABASE_URL,
   Number(process.env.AUTH_LOCK_POOL_MAX ?? 1),
 )
 
-// Origens por ambiente: acessar pelo IP da rede local (celular) exige declarar esse IP.
-const trustedOrigins = (process.env.TRUSTED_ORIGINS || 'http://localhost:5173')
+// Mesmas origens do CORS: acessar pelo IP da rede local (celular) exige declarar esse IP.
+const trustedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean)

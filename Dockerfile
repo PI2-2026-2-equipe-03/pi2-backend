@@ -9,8 +9,9 @@ FROM base AS dev
 ENV NODE_ENV=development
 COPY . .
 EXPOSE 3000
-# Ajuste "dev" caso o script no seu package.json tenha outro nome
-CMD ["npm", "run", "dev"]
+# sem --env-file: no container, as variáveis vêm só do `environment` do docker-compose.yml.
+# não troque por `npm run dev`: o script lê o .env, que entra no container pelo bind mount.
+CMD ["npx", "tsx", "watch", "src/server.ts"]
 
 # === Build de Produção ===
 FROM base AS builder

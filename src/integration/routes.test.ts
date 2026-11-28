@@ -56,7 +56,7 @@ beforeAll(async () => {
     await adminPool.query(`CREATE DATABASE "${databaseName}"`)
     db = new Pool({ connectionString: databaseUrl.toString() })
     await applyDatabaseScripts(db)
-    process.env.AUTH_DATABASE_URL = process.env.REPLAY_DATABASE_URL = process.env.DATABASE_URL = databaseUrl.toString()
+    process.env.DATABASE_URL = databaseUrl.toString()
     process.env.BETTER_AUTH_URL = 'http://localhost:3000'
     process.env.BETTER_AUTH_SECRET = randomUUID() + randomUUID()
 

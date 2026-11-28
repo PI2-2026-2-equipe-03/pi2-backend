@@ -11,8 +11,8 @@ if (!arenaId || !uuid.safeParse(arenaId).success) {
   process.exit(1)
 }
 
-const connectionString = process.env.REPLAY_DATABASE_URL ?? process.env.DATABASE_URL
-if (!connectionString) throw new Error('Defina DATABASE_URL ou REPLAY_DATABASE_URL')
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) throw new Error('Defina DATABASE_URL')
 const pool = new Pool({ connectionString })
 
 try {

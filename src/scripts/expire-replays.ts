@@ -1,7 +1,7 @@
 import { Pool } from 'pg'
 import { expireReplays, deleteStoredMedia } from '../services/replay-retention.js'
-const connectionString = process.env.REPLAY_DATABASE_URL ?? process.env.DATABASE_URL
-if (!connectionString) throw new Error('Defina DATABASE_URL ou REPLAY_DATABASE_URL')
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) throw new Error('Defina DATABASE_URL')
 const pool = new Pool({ connectionString })
 try {
   const queued = await expireReplays(pool)
