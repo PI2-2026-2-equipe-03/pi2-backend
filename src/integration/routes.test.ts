@@ -361,20 +361,203 @@ describe('B3-02 — rotas com PostgreSQL real, sem mock', () => {
         const metrics = await app.inject({ url: '/api/admin/metrics', headers: bearer(admin.token) })
         expect(metrics.json().mostAccessedCourts[0]).toMatchObject({ courtId, accesses: 1 })
     })
+
+
     it('exclusão exige motivo e perfil e grava mudança/auditoria atomicamente', async () => {
-        expect((await app.inject({ method: 'DELETE', url: `/api/replays/${availableId}`, headers: bearer(manager.token), payload: { reason: '' } })).statusCode).toBe(400)
-        expect((await app.inject({ method: 'DELETE', url: `/api/replays/${availableId}`, headers: bearer(user.token), payload: { reason: 'Teste sem permissão' } })).statusCode).toBe(403)
-        const response = await app.inject({ method: 'DELETE', url: `/api/replays/${availableId}`, headers: bearer(manager.token), payload: { reason: 'Solicitação do proprietário' } })
+        // Motivo obrigatório.
+        expect((await app.inject({
+            method: 'DELETE',
+            url: `/api/replays/${availableId}`,
+            headers: bearer(manager.token),
+            payload: { reason: '' },
+        })).statusCode).toBe(400)
+
+        // Motivo com menos de 3 caracteres.
+        expect((await app.inject({
+            method: 'DELETE',
+            url: `/api/replays/${availableId}`,
+            headers: bearer(manager.token),
+            payload: { reason: 'ab' },
+        })).statusCode).toBe(400)
+
+        // Motivo com mais de 500 caracteres.
+        expect((await app.inject({
+            method: 'DELETE',
+            url: `/api/replays/${availableId}`,
+            headers: bearer(manager.token),
+            payload: { reason: 'a'.repeat(501) },
+        })).statusCode).toBe(400)
+
+        // Atleta não pode excluir replay.
+        expect((await app.inject({
+            method: 'DELETE',
+            url: `/api/replays/${availableId}`,
+            headers: bearer(user.token),
+            payload: { reason: 'Teste sem permissão' },
+        })).statusCode).toBe(403)
+
+        // Gestor proprietário pode excluir.
+        const response = await app.inject({
+            method: 'DELETE',
+            url: `/api/replays/${availableId}`,
+            headers: bearer(manager.token),
+            payload: { reason: 'Solicitação do proprietário' },
+        })
+
         expect(response.statusCode, response.body).toBe(200)
-        expect((await db.query('SELECT status,arquivo_url FROM replay WHERE id_replay=$1', [availableId])).rows[0]).toEqual({ status: 'excluido', arquivo_url: null })
-        expect((await db.query('SELECT id_auth,motivo FROM replay_auditoria WHERE id_replay=$1', [availableId])).rows[0]).toMatchObject({ id_auth: manager.id, motivo: 'Solicitação do proprietário' })
-        expect((await app.inject({ url: `/api/replays/${availableId}/download`, headers: bearer(user.token) })).statusCode).toBe(404)
-        expect((await app.inject({ method: 'DELETE', url: `/api/replays/${availableId}`, headers: bearer(manager.token), payload: { reason: 'Novamente' } })).statusCode).toBe(404)
+
+        // Confirma exclusão lógica e remoção da URL pública.
+        const persisted = await db.query(
+            'SELECT status, arquivo_url FROM replay WHERE id_replay=$1',
+            [availableId],
+        )
+
+        expect(persisted.rows[0]).toEqual({
+            status: 'excluido',
+            arquivo_url: null,
+        })
+
+        // Confirma o registro de auditoria.
+        const audit = await db.query(
+            'SELECT id_auth, motivo FROM replay_auditoria WHERE id_replay=$1',
+            [availableId],
+        )
+
+        expect(audit.rows[0]).toMatchObject({
+            id_auth: manager.id,
+            motivo: 'Solicitação do proprietário',
+        })
+
+        // Replay excluído não pode mais ser baixado.
+        expect((await app.inject({
+            url: `/api/replays/${availableId}/download`,
+            headers: bearer(user.token),
+        })).statusCode).toBe(404)
+
+        // Não permite excluir novamente.
+        expect((await app.inject({
+            method: 'DELETE',
+            url: `/api/replays/${availableId}`,
+            headers: bearer(manager.token),
+            payload: { reason: 'Novamente' },
+        })).statusCode).toBe(404)
     })
-    it('administrador também pode excluir replay de outra quadra', async () => {
-        const response = await app.inject({ method: 'DELETE', url: `/api/replays/${createdId}`, headers: bearer(admin.token), payload: { reason: 'Moderação administrativa' } })
+
+    it('impede gestor de excluir replay de outra arena', async () => {
+        const anotherManager = await account('outrogestor', '85911118888')
+
+        await db.query(
+            `INSERT INTO gestor_arena(id_usuario, razao_social, cpf, endereco)
+             SELECT id_usuario, 'Outra Arena', '12345678902', 'Rua Teste'
+             FROM usuario_auth
+             WHERE id_auth=$1`,
+            [anotherManager.id],
+        )
+
+        const anotherArena = await db.query(
+            `INSERT INTO arena(id_gestor, nome, cidade, endereco)
+             SELECT id_usuario, 'Outra Arena', 'Fortaleza', 'Rua Teste'
+             FROM usuario_auth
+             WHERE id_auth=$1
+             RETURNING id_arena`,
+            [anotherManager.id],
+        )
+
+        const anotherCourt = await db.query(
+            `INSERT INTO quadra(id_arena, nome)
+             VALUES($1, 'Outra Quadra')
+             RETURNING id_quadra`,
+            [anotherArena.rows[0].id_arena],
+        )
+
+        const replay = await db.query(
+            `INSERT INTO replay(
+                id_quadra,
+                arquivo_url,
+                data_geracao,
+                hora_geracao,
+                status,
+                criado_em,
+                expira_em
+            )
+            VALUES(
+                $1,
+                'https://example.com/outro.mp4',
+                CURRENT_DATE,
+                '15:00',
+                'disponivel',
+                now(),
+                now() + INTERVAL '5 days'
+            )
+            RETURNING id_replay`,
+            [anotherCourt.rows[0].id_quadra],
+        )
+
+        const replayId = replay.rows[0].id_replay
+
+        // O gestor original tenta excluir o replay da outra arena.
+        const response = await app.inject({
+            method: 'DELETE',
+            url: `/api/replays/${replayId}`,
+            headers: bearer(manager.token),
+            payload: { reason: 'Tentativa não autorizada' },
+        })
+
+        expect(response.statusCode, response.body).toBe(403)
+
+        // O replay continua intacto.
+        const persisted = await db.query(
+            'SELECT status, arquivo_url FROM replay WHERE id_replay=$1',
+            [replayId],
+        )
+
+        expect(persisted.rows[0]).toMatchObject({
+            status: 'disponivel',
+            arquivo_url: 'https://example.com/outro.mp4',
+        })
+
+        // Uma tentativa sem autorização não deve gerar auditoria.
+        const audit = await db.query(
+            'SELECT id FROM replay_auditoria WHERE id_replay=$1',
+            [replayId],
+        )
+
+        expect(audit.rowCount).toBe(0)
+    })
+
+    it('administrador pode excluir replay e registra auditoria', async () => {
+        const response = await app.inject({
+            method: 'DELETE',
+            url: `/api/replays/${createdId}`,
+            headers: bearer(admin.token),
+            payload: { reason: 'Moderação administrativa' },
+        })
+
         expect(response.statusCode, response.body).toBe(200)
+
+        // Confirma a exclusão lógica.
+        const persisted = await db.query(
+            'SELECT status, arquivo_url FROM replay WHERE id_replay=$1',
+            [createdId],
+        )
+
+        expect(persisted.rows[0]).toEqual({
+            status: 'excluido',
+            arquivo_url: null,
+        })
+
+        // Confirma que a auditoria identifica o administrador.
+        const audit = await db.query(
+            'SELECT id_auth, motivo FROM replay_auditoria WHERE id_replay=$1',
+            [createdId],
+        )
+
+        expect(audit.rows[0]).toMatchObject({
+            id_auth: admin.id,
+            motivo: 'Moderação administrativa',
+        })
     })
+
     it('expira sessão após inatividade e renova por atividade', async () => {
         const before = (await db.query('SELECT "expiresAt" FROM "session" WHERE token=$1', [user.token])).rows[0].expiresAt
         await db.query(`UPDATE "session" SET "expiresAt"=now()+INTERVAL '2 minutes',"updatedAt"=now()-INTERVAL '28 minutes' WHERE token=$1`, [user.token])
